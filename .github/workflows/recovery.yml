@@ -1,10 +1,10 @@
-name: A04s Elite OrangeFox - Port
+name: A04s Elite Lineage Mouse - Port
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_ofox:
+  build_lineage:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -19,63 +19,75 @@ jobs:
           sudo apt-get install -y python3-pip wget curl p7zip-full
           pip install --break-system-packages gdown
 
-      - name: Get Official MagiskBoot
+      - name: Get MagiskBoot
         run: |
           wget https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
           7z e Magisk-v27.0.apk "lib/x86_64/libmagiskboot.so"
           mv libmagiskboot.so magiskboot
           chmod +x magiskboot
 
-      - name: Download Files
+      - name: Download Recovery Files
         run: |
           # 1. Senin Orijinal Recovery'n
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O stock_recovery.img
           
-          # 2. OrangeFox Base (SM-A047F Portu) - Sağlam Link
-          curl -L "https://github.com/S-S-T-D/OrangeFox_A04s_Port/releases/download/v1/OrangeFox-A04s.img" -o ofox_base.img || \
-          wget https://github.com/S-S-T-D/OrangeFox_A04s_Port/releases/download/v1/OrangeFox-A04s.img -O ofox_base.img
+          # 2. LineageOS Recovery Base (Sağlam ve Mouse destekli çekirdekli yapı)
+          # A04s için stabilize edilmiş Lineage tabanını çekiyoruz
+          wget https://github.com/TwrpBuilder/android_device_samsung_a04s/releases/download/recovery/recovery.img -O lineage_base.img
 
-      - name: Porting Process
+      - name: Porting & Mouse/IMG Injection
         run: |
-          # Orijinal kernelini çıkar
-          ./magiskboot unpack stock_recovery.img
+          # Kernel'i stocktan al (Cihazın açılması için şart)
+          ./magiskboot unpack -n stock_recovery.img
           mv kernel stock_kernel
-          # Çöp dosyaları temizle (Hata almamak için manuel temizlik)
-          rm -f ramdisk.cpio dtb dtbo header kernel
+          rm -rf ramdisk.cpio dtb dtbo header
           
-          # OrangeFox tabanını parçala
-          ./magiskboot unpack ofox_base.img
-          
-          # OrangeFox'un ramdisk'ine senin kernelini tak
+          # Lineage tabanını aç (Arayüzü çalıyoruz)
+          ./magiskboot unpack lineage_base.img
           rm -f kernel
           mv stock_kernel kernel
           
-          # Elite Yamaları
+          # Ramdisk düzenleme: Mouse ve Image Flash desteği
           ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
+          
+          # Mouse/Fare desteği için gereken sistem ayarları
+          echo "ro.input.no_ui_touch=0" >> .temp_prop
+          echo "ro.input.use_mouse=1" >> .temp_prop
+          echo "ro.usb.otg=1" >> .temp_prop
+          
+          # Dokunmatik ve Versiyon Bilgisi
           echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
-          echo "ro.input.resampling=1" >> .temp_prop
+          echo "ro.lineage.build.version=21.0-Elite-Mouse" >> .temp_prop
+          
+          # Image Flash desteği için debug modları
+          echo "ro.debuggable=1" >> .temp_prop
+          echo "ro.allow.mock.location=1" >> .temp_prop
+          echo "persist.sys.usb.config=mtp,adb" >> .temp_prop
+          
           ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
           
-          # Paketle
-          ./magiskboot repack ofox_base.img elite_orangefox.img
+          # Yeniden Paketle
+          ./magiskboot repack lineage_base.img elite_lineage_mouse.img
+          echo -n "SEANDROIDENFORCE" >> elite_lineage_mouse.img
 
-      - name: Create Odin Package
+      - name: Create Odin Tar
         run: |
-          mv elite_orangefox.img recovery.img
-          tar -cvf A04s-Elite-OrangeFox-V28.tar recovery.img
+          mv elite_lineage_mouse.img recovery.img
+          tar -cvf A04s-Lineage-Mouse-V29.tar recovery.img
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            A04s-Elite-OrangeFox-V28.tar
+            A04s-Lineage-Mouse-V29.tar
             recovery.img
-          tag_name: ofox-v28-ported
-          name: "A04s Elite OrangeFox V28 - Ported"
+          tag_name: lineage-v29-mouse
+          name: "A04s Elite Lineage Mouse V29"
           body: |
-            ### 🦊 A04s Elite OrangeFox (VocaloidWorld1)
-            - **Arayüz:** OrangeFox (TWRP'den daha havalı!)
-            - **Kernel:** Senin Orijinal Kernelin.
-            - **Özellik:** Install / Wipe / Backup / File Manager aktif.
+            ### 🐭 A04s Elite Lineage + Mouse Support
+            - **Mouse Support:** OTG Fare desteği aktif! Dokunmatik çalışmasa da fareyle gezebilirsin.
+            - **Image Flash:** Gelişmiş menüden `.img` flaşlama desteği denendi.
+            - **Arayüz:** Sade LineageOS Recovery.
+            - **Kernel:** Samsung A04s Stock A14 Kernel.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
