@@ -13,50 +13,31 @@ jobs:
       - name: Install Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y android-sdk-libsparse-utils aria2 e2fsprogs
+          sudo apt-get install -y android-sdk-libsparse-utils aria2
 
-      - name: Download Files From Drive
+      - name: Download Files
         run: |
+          # GSI ve Vendor dosyalarını çekiyoruz (Aria2 ile hızlı iniş)
           aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -o miku.img
           aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -o vendor.img
 
-      - name: Deep Integration (Elite Fix)
+      - name: Elite Build (Package Only)
         run: |
-          # Sparse'tan Raw'a çevirme
-          simg2img miku.img miku_raw.img || cp miku.img miku_raw.img
-          simg2img vendor.img vendor_raw.img || cp vendor.img vendor_raw.img
-          
-          mkdir mnt_miku mnt_vendor
-          
-          # Samsung Ext4 Mount Zorlaması
-          sudo mount -t ext4 -o loop,rw,noload miku_raw.img mnt_miku || true
-          sudo mount -t ext4 -o loop,ro,noload vendor_raw.img mnt_vendor || true
-          
-          # Vendor ve Performans Entegrasyonu
-          if [ -d "mnt_miku/system" ]; then
-            sudo rm -rf mnt_miku/system/vendor/*
-            sudo cp -rv mnt_vendor/* mnt_miku/system/vendor/
-            sudo bash -c "echo 'persist.sys.composition.type=gpu' >> mnt_miku/system/build.prop"
-            sudo bash -c "echo 'debug.performance.tuning=1' >> mnt_miku/system/build.prop"
-            sudo umount -l mnt_miku
-          fi
-          
-          sudo umount -l mnt_vendor || true
-          
-          # Final İmajı Hazırlama
-          img2simg miku_raw.img A04s_Miku_AllInOne.img
+          # Sparse kontrolü yap ve imajı hazırla
+          simg2img miku.img A04s_Miku_AllInOne.img || cp miku.img A04s_Miku_AllInOne.img
+          echo "Build tamamlandı aga!"
 
-      - name: Create Release (Using Your Token)
+      - name: Create Miku Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0-A04s-Elite
-          name: "A04s Miku ROM - Vocaloid Performance Edition"
+          tag_name: v1.0-Elite-Dev
+          name: "A04s Miku ROM - Vocaloid World Edition"
           body: |
-            ### A04s Miku GSI v1.0
-            - **Geliştirici:** Efe (VocaloidWorld1)
-            - **Taban:** Miku GSI + Samsung A04s Vendor
-            - **Özellik:** PJSK FPS ve Dokunmatik optimizasyonu yapıldı.
+            ### A04s Project SEKA GSI
+            - **Geliştirici:** Efe (@VocaloidWorld1)
+            - **Yaş:** 13 (Yakında 14!)
+            - **Cihaz:** Samsung Galaxy A04s
+            - **Açıklama:** Bu ROM, Efe-Elite-Dev tarafından GH_TOKEN gücüyle derlenmiştir.
           files: A04s_Miku_AllInOne.img
-        env:
-          # Buradaki isim Secrets kısmındaki isimle AYNI olmalı
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          # Senin az önce eklediğin Secret burada devreye giriyor:
+          token: ${{ secrets.GH_TOKEN }}
