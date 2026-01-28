@@ -13,31 +13,32 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Install Tools
+      - name: Download Files (Force Big File)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y android-sdk-libsparse-utils aria2
-
-      - name: Download Files (Large File Fix)
-        run: |
-          # GSI indirme (Büyük dosya onayını otomatik geçer)
-          aria2c -s 16 -x 16 --check-certificate=false "https://docs.google.com/uc?export=download&confirm=$(curl -sL "https://docs.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" | grep -o 'confirm=[^&]*' | sed 's/confirm=//')&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -o miku.img
+          # Miku GSI indirme (Onay kodunu alarak)
+          wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -O miku.img && rm -rf /tmp/cookies.txt
           
-          # Vendor indirme
-          aria2c -s 16 -x 16 --check-certificate=false "https://docs.google.com/uc?export=download&confirm=$(curl -sL "https://docs.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" | grep -o 'confirm=[^&]*' | sed 's/confirm=//')&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -o vendor.img
+          # Vendor indirme (Onay kodunu alarak)
+          wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -O vendor.img && rm -rf /tmp/cookies.txt
+
+      - name: Check Size
+        run: |
+          # Burada dosya boyutunu kontrol ediyoruz
+          ls -lh *.img
+          echo "Efe, eğer burada 2.0G veya benzeri görüyorsan başardık!"
 
       - name: Build ROM
         run: |
-          # Boyut kontrolü yapalım (Loglarda göreceksin)
-          ls -lh *.img
+          # Sparse'tan çevir veya kopyala
+          sudo apt-get update && sudo apt-get install -y android-sdk-libsparse-utils
           simg2img miku.img A04s_Miku_AllInOne.img || cp miku.img A04s_Miku_AllInOne.img
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0-A04s-Vocaloid
-          name: "A04s Miku ROM - Real Size Edition"
-          body: "Efe-Elite-Dev tarafından derlendi. Bu sefer gerçek boyut!"
+          tag_name: v1.0-A04s-Real
+          name: "A04s Miku ROM - Real Size"
+          body: "22 Şubat 2012 doğumlu Efe'den dev build! Bu sefer 2KB değil, gerçek boyut!"
           files: A04s_Miku_AllInOne.img
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
