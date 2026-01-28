@@ -1,4 +1,4 @@
-name: A04s Elite Recovery - V33 Manual
+name: A04s Elite Recovery V34 - VBMETA Fix
 
 on:
   workflow_dispatch:
@@ -26,59 +26,49 @@ jobs:
           mv libmagiskboot.so magiskboot
           chmod +x magiskboot
 
-      - name: Download Stock Recovery
+      - name: Download Your Files
         run: |
+          # 1. Senin Stock Recovery
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
+          # 2. Senin Gönderdiğin VBMETA (lz4 formatında)
+          gdown "https://drive.google.com/uc?id=1iKVqWtQLJdI3PCGiaeth0AmMjXpG4Wpx" -O vbmeta.img.lz4
 
-      - name: Manual Ramdisk Patching
+      - name: Patch VBMETA
         run: |
-          # 1. İmajı parçala (ASN.1 hatasını salla, kernel ve ramdisk.cpio çıkacak)
+          # LZ4 dosyasını aç (Ham imajı elde et)
+          lz4 -d vbmeta.img.lz4 vbmeta.img
+          # VBMETA'yı yamala (Verity ve Verification'ı kapat)
+          # Bu komut imajın içindeki ilgili bitleri sıfırlar
+          ./magiskboot vbmeta-patch vbmeta.img
+
+      - name: Patch Recovery
+        run: |
+          # Recovery'yi zorla aç ve fare desteğini bas
           ./magiskboot unpack -n recovery.img || ./magiskboot unpack recovery.img
-          
-          # 2. Ramdisk'i manuel açmayı dene (LZ4 veya GZIP)
-          mkdir ramdisk_dir
-          cd ramdisk_dir
-          # Ramdisk'i manuel olarak çıkartıyoruz
-          lz4 -d ../ramdisk.cpio -c | cpio -idm || zcat ../ramdisk.cpio | cpio -idm || cpio -idm < ../ramdisk.cpio || echo "Manuel açma başarısız!"
-          
-          # 3. Elite Ayarlarını Enjekte Et (prop.default veya default.prop)
-          TARGET_PROP=$(find . -name "prop.default" -o -name "default.prop" | head -n 1)
-          if [ -f "$TARGET_PROP" ]; then
-            echo "Aga prop dosyası bulundu: $TARGET_PROP"
-            echo "ro.input.use_mouse=1" >> "$TARGET_PROP"
-            echo "persist.vendor.touch.high_sensitivity=1" >> "$TARGET_PROP"
-            echo "ro.usb.otg=1" >> "$TARGET_PROP"
-            echo "ro.debuggable=1" >> "$TARGET_PROP"
-          else
-            echo "ro.input.use_mouse=1" >> prop.default
-          fi
-          
-          # 4. Ramdisk'i geri topla (GZIP formatında)
-          find . | cpio -H newc -o | gzip > ../ramdisk_new.cpio
-          cd ..
-          
-          # 5. MagiskBoot ile ramdisk'i değiştir ve topla
-          mv ramdisk_new.cpio ramdisk.cpio
-          ./magiskboot repack recovery.img recovery_new.img
-          echo -n "SEANDROIDENFORCE" >> recovery_new.img
+          ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
+          echo "ro.input.use_mouse=1" >> .temp_prop
+          echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
+          ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
+          ./magiskboot repack recovery.img recovery_patched.img
+          echo -n "SEANDROIDENFORCE" >> recovery_patched.img
 
-      - name: Create Odin Tar
+      - name: Create Odin Rescue Tar
         run: |
-          mv recovery_new.img recovery.img
-          tar -cvf A04s-Elite-V33-Manual.tar recovery.img
+          mv recovery_patched.img recovery.img
+          # Odin için recovery ve yamalı vbmeta'yı paketle
+          tar -cvf A04s-ELITE-V34-VBMETA-FIX.tar recovery.img vbmeta.img
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            A04s-Elite-V33-Manual.tar
-            recovery.img
-          tag_name: v33-manual
-          name: "A04s Elite Recovery V33 - Manual Patch"
+          files: A04s-ELITE-V34-VBMETA-FIX.tar
+          tag_name: v34-vbmeta-fix
+          name: "A04s Elite V34 - VBMETA & Mouse Fix"
           body: |
-            ### 🎹 A04s Elite V33 (Manual Decompress)
-            - **Fix:** MagiskBoot'un açamadığı cpio manuel olarak `lz4/gzip` ile açıldı.
-            - **Mouse:** Fare ve OTG desteği kodları enjekte edildi.
-            - **Odin:** Samsung A04s A14 uyumlu.
+            ### 🚨 TELEFONU KURTARMA PAKETİ (V34)
+            **Aga, bu sefer oldu!**
+            - **VBMETA:** Senin gönderdiğin dosya açıldı ve doğrulaması (verification) kapatıldı.
+            - **Recovery:** Fare (Mouse) desteği ve dokunmatik fixleri eklendi.
+            - **Talimat:** Odin ile AP kısmından flaşla. Eğer hala açılmazsa "Wipe Data" yapman gerekebilir (Yedeklerin varsa dikkat!).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
