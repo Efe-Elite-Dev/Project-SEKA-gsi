@@ -1,4 +1,4 @@
-name: A04s-ROM-Builder-Elite
+name: A04s-All-In-One-GSI-Builder
 
 on:
   workflow_dispatch:
@@ -7,25 +7,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y simg2img img2simg aria2
+          sudo apt-get install -y android-sdk-libsparse-utils aria2
 
-      - name: Download Files from Drive
+      - name: Download All Components
         run: |
-          # Dosyaları Drive'dan hızlıca çekiyoruz (Aria2 ile)
+          # GSI, Vendor, Boot ve Dtbo dosyalarını Drive'dan çekiyoruz
           aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -o miku.img
           aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -o vendor.img
           aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1Om_YKquAihgvhAQ6lS33e7zEKNXMhtj1" -o boot.img
           aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1x9zKGlZCM0BmpWr9hHkSDZirDa6KYq9y" -o dtbo.img
 
-      - name: Integrate Vendor into GSI
+      - name: Deep Integration (All-in-One)
         run: |
-          # İmajları Raw formatına çevir
+          # İmajları açılabilir hale getir
           simg2img miku.img miku_raw.img || cp miku.img miku_raw.img
           simg2img vendor.img vendor_raw.img || cp vendor.img vendor_raw.img
           
@@ -33,28 +33,38 @@ jobs:
           sudo mount -o loop miku_raw.img mnt_miku
           sudo mount -o loop vendor_raw.img mnt_vendor
           
-          # Elite Entegrasyon: GSI vendor klasörünü temizleyip orijinalini basıyoruz
+          # 1. Vendor Entegrasyonu
           sudo rm -rf mnt_miku/system/vendor/*
           sudo cp -rv mnt_vendor/* mnt_miku/system/vendor/
           
-          # PJSK FPS ve Dokunmatik Optimizasyonu
+          # 2. Boot ve Dtbo'yu sistem içine yedek olarak gömme (Acil durum için)
+          sudo mkdir -p mnt_miku/system/etc/elite_dev
+          sudo cp boot.img mnt_miku/system/etc/elite_dev/
+          sudo cp dtbo.img mnt_miku/system/etc/elite_dev/
+          
+          # 3. PJSK ve Sistem Performans Ayarları
+          sudo bash -c "echo 'ro.build.display.id=A04s-Vocaloid-HyperOS-v1' >> mnt_miku/system/build.prop"
           sudo bash -c "echo 'debug.performance.tuning=1' >> mnt_miku/system/build.prop"
-          sudo bash -c "echo 'ro.config.low_ram=false' >> mnt_miku/system/build.prop"
+          sudo bash -c "echo 'persist.sys.composition.type=gpu' >> mnt_miku/system/build.prop"
           
           sudo umount mnt_miku
           sudo umount mnt_vendor
           
-          # Son dosyayı isimlendirme
-          mv miku_raw.img a04s_miku_v1.img
+          # Final dosyasını paketle
+          mv miku_raw.img A04s_Miku_AllInOne.img
 
-      - name: Upload Release
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0-beta
-          name: "A04s ROM - Vocaloid Performance Edition"
-          files: |
-            a04s_miku_v1.img
-            boot.img
-            dtbo.img
+          tag_name: v1.0-final
+          name: "A04s ROM - All-In-One Edition"
+          body: |
+            ## A04s-Vocaloid-Hyper-OS (Efe-Elite-Dev)
+            Bu imaj her şeyi içinde barındırır:
+            - **Sistem:** Miku GSI
+            - **Sürücüler:** Orijinal Samsung Vendor (Entegre edildi)
+            - **Kernel:** Orijinal Boot.img (Sistem içine yedeklendi)
+            - **Performans:** PJSK ve Dokunmatik optimizasyonu yapıldı.
+          files: A04s_Miku_AllInOne.img
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
