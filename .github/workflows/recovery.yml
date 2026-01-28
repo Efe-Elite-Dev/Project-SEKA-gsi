@@ -1,4 +1,4 @@
-name: A04s Elite Recovery - Armored V28
+name: A04s Elite Recovery - Final Patience V28
 
 on:
   workflow_dispatch:
@@ -19,41 +19,37 @@ jobs:
           sudo apt-get install -y python3-pip xz-utils file p7zip-full
           pip install gdown
 
-      - name: Setup AIK (Source & Direct Access)
+      - name: Setup AIK & Download Stock
         run: |
-          # AIK'ı klonla
+          # 1. AIK'ı klonla ve klasöre gir
           git clone https://github.com/osm0sis/Android-Image-Kitchen.git AIK
           
-          # Dosyaları kopyalamak yerine klasörün içine girip çalışacağız, daha güvenli!
-          chmod -R +x AIK/*.sh
-          chmod -R +x AIK/bin/
+          # 2. Senin Recovery imajını çek ve içine at
+          gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O AIK/recovery.img
           
-      - name: Download Stock Recovery
-        run: |
-          gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
-          # İmajı AIK klasörüne taşıyalım ki her şey bir arada olsun
-          mv recovery.img AIK/
-
-      - name: Unpack and Elite Patch
-        run: |
+          # 3. Klasörün içine girip izinleri ver (BEKLEYEREK)
           cd AIK
-          # Unpack işlemini klasör içinden başlat
+          sleep 2 # Dosyaların yerleşmesi için 2 saniye bekle
+          chmod +x *.sh
+          chmod -R +x bin/
+          
+          # 4. Unpack işlemini başlat
           ./unpackimg.sh recovery.img
           
-          # --- Elite-Speed & Touch Fix ---
-          # Ramdisk içindeki prop dosyalarına hız ve uyanma fixlerini göm
+          # --- Elite-Speed & Touch Fix (Efe V28) ---
+          # Tüm prop dosyalarını bul ve hız ayarlarını bas
           find ramdisk/ -name "*.prop" -o -name "prop.default" | xargs -I {} sh -c '
             echo "persist.vendor.touch.high_sensitivity=1" >> {}
             echo "ro.input.resampling=1" >> {}
             echo "vendor.display.enable_touch_boost=1" >> {}
           '
           
-          # Repack işlemi
+          # 5. Repack
           ./repackimg.sh
 
       - name: Prepare Odin Package
         run: |
-          # Oluşan imajı AIK klasöründen çıkarıp ana dizine al
+          # Yeni imajı AIK klasöründen alıp ana dizine çıkar
           mv AIK/image-new.img recovery.img
           tar -cvf A04s-Elite-Recovery.tar recovery.img
           sha256sum recovery.img > sha256.txt
@@ -65,13 +61,12 @@ jobs:
             A04s-Elite-Recovery.tar
             recovery.img
             sha256.txt
-          tag_name: recovery-v28-armored
-          name: "A04s Elite Recovery V28 - Armored Build"
+          tag_name: recovery-v28-final
+          name: "A04s Elite Recovery V28 - Final Stable"
           body: |
             ### 🚀 A04s Elite Recovery (VocaloidWorld1)
-            - **Build Status:** Fixed "bin/" access error.
-            - **Optimizations:** Ultra Touch Boost & No-Lag UI.
-            - **Format:** Odin (.tar) & Flashable (.img).
-            - **Dev:** Efe (13 but Elite) 🎹🔥
+            - **Build Status:** Hız hataları giderildi (Patience Build).
+            - **Fix:** Dokunmatik ve uyku modu mermi gibi!
+            - **Dev:** Efe (VocaloidWorld1) 🎹🔥
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
