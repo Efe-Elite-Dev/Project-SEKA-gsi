@@ -1,4 +1,4 @@
-name: A04s Elite Recovery - MagiskBoot Method
+name: A04s Elite Recovery - MagiskBoot Final
 
 on:
   workflow_dispatch:
@@ -13,50 +13,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Tools
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip gdown
-          pip install gdown
+          sudo apt-get install -y python3-pip wget curl
+          # gdown'ı pip ile kuruyoruz, apt ile değil!
+          pip install --break-system-packages gdown || pip install gdown
 
       - name: Download Recovery & MagiskBoot
         run: |
           # Senin Recovery'yi çekiyoruz
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
           
-          # MagiskBoot'un Linux versiyonunu GitHub'dan çekiyoruz (En sağlamı)
-          wget https://github.com/VocaloidWorld1/Project-SEKA-gsi/raw/main/magiskboot || wget https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
-          # Eğer APK indiyse içinden magiskboot'u çıkaracağız, ama senin için direkt binary bulmaya çalışalım:
-          # Profesyonel yöntem: GitHub'da önceden derlenmiş magiskboot binary'sini çek
-          curl -L https://github.com/Yule-T/MagiskBoot-Linux/raw/main/magiskboot -o magiskboot
+          # MagiskBoot x86_64 Linux Binary (Doğrudan çalışan versiyon)
+          curl -L "https://github.com/VocaloidWorld1/Project-SEKA-gsi/raw/main/magiskboot" -o magiskboot || \
+          curl -L "https://raw.githubusercontent.com/magisk-modules-repo/magiskboot/master/magiskboot" -o magiskboot
+          
           chmod +x magiskboot
 
       - name: Unpack - Patch - Repack
         run: |
-          # 1. İmajı parçala (ramdisk.cpio oluşacak)
+          # 1. Parçala
           ./magiskboot unpack recovery.img
           
-          # 2. Ramdisk'i aç ve prop ayarlarını içine işle
-          # Magiskboot ile ramdisk içindeki dosyayı direkt düzenliyoruz
-          ./magiskboot cpio ramdisk.cpio \
-            "add 0644 prop.default .temp_prop"
+          # 2. Ramdisk'ten prop dosyasını çek ve düzenle
+          ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
           
-          # Hassasiyet ayarlarını ekle
           echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
           echo "ro.input.resampling=1" >> .temp_prop
           echo "vendor.display.enable_touch_boost=1" >> .temp_prop
           
-          # Ramdisk'e geri gönder
+          # 3. Geri bas
           ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
           
-          # 3. İmajı geri topla
-          ./magiskboot repack recovery.img elite_recovery.img
+          # 4. Topla
+          ./magiskboot repack recovery.img recovery_new.img
 
       - name: Create Odin Tar
         run: |
-          # Odin için .tar yap
-          mv elite_recovery.img recovery.img
+          mv recovery_new.img recovery.img
           tar -cvf A04s-Elite-Recovery-V28.tar recovery.img
+          sha256sum recovery.img > sha256.txt
 
       - name: Release Final
         uses: softprops/action-gh-release@v1
@@ -64,12 +61,13 @@ jobs:
           files: |
             A04s-Elite-Recovery-V28.tar
             recovery.img
-          tag_name: v28-magiskboot
-          name: "A04s Elite Recovery V28 - No AIK Edition"
+            sha256.txt
+          tag_name: v28-final-touch
+          name: "A04s Elite Recovery V28 - FIXED"
           body: |
-            Aga, AIK'sız, hatasız, tertemiz build!
-            - MagiskBoot teknolojisi kullanıldı.
-            - Dokunmatik hızı v28 seviyesine çekildi.
-            - Efe (VocaloidWorld1) 🎹🔥
+            Aga, gdown hatası çözüldü, MagiskBoot devreye girdi!
+            - No AIK, No Problem!
+            - Ultra Touch Sensitivity Aktif.
+            - Efe (VocaloidWorld1) imzalı. 🎹🔥
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
