@@ -6,11 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Bu kısım GitHub'a 'Benim yetkim var' mesajı gönderir
     permissions:
       contents: write
-      packages: write
-      actions: write
 
     steps:
       - name: Checkout Repo
@@ -21,28 +18,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y android-sdk-libsparse-utils aria2
 
-      - name: Download Files
+      - name: Download Files (Large File Fix)
         run: |
-          aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -o miku.img
-          aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -o vendor.img
+          # GSI indirme (Büyük dosya onayını otomatik geçer)
+          aria2c -s 16 -x 16 --check-certificate=false "https://docs.google.com/uc?export=download&confirm=$(curl -sL "https://docs.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" | grep -o 'confirm=[^&]*' | sed 's/confirm=//')&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -o miku.img
+          
+          # Vendor indirme
+          aria2c -s 16 -x 16 --check-certificate=false "https://docs.google.com/uc?export=download&confirm=$(curl -sL "https://docs.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" | grep -o 'confirm=[^&]*' | sed 's/confirm=//')&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -o vendor.img
 
       - name: Build ROM
         run: |
-          # Efe-Elite-Dev Paketleme Sistemi
+          # Boyut kontrolü yapalım (Loglarda göreceksin)
+          ls -lh *.img
           simg2img miku.img A04s_Miku_AllInOne.img || cp miku.img A04s_Miku_AllInOne.img
-          echo "Build bitti aga, Release'e uçuyoruz!"
 
-      - name: Create Miku Release
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v1.0-A04s-Vocaloid
-          name: "A04s Miku ROM - Project SEKA Edition"
-          body: |
-            ### 22 Şubat Öncesi Dev Build!
-            - **Dev:** Efe (@VocaloidWorld1)
-            - **Cihaz:** Samsung A04s
-            - **Durum:** Token Power Aktif! 🚀
+          name: "A04s Miku ROM - Real Size Edition"
+          body: "Efe-Elite-Dev tarafından derlendi. Bu sefer gerçek boyut!"
           files: A04s_Miku_AllInOne.img
         env:
-          # Senin o 'her şeyi işaretlediğin' kutsal anahtar:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
