@@ -6,6 +6,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Bu kısım GitHub'a 'Benim yetkim var' mesajı gönderir
+    permissions:
+      contents: write
+      packages: write
+      actions: write
+
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -17,27 +23,26 @@ jobs:
 
       - name: Download Files
         run: |
-          # GSI ve Vendor dosyalarını çekiyoruz (Aria2 ile hızlı iniş)
           aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -o miku.img
           aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -o vendor.img
 
-      - name: Elite Build (Package Only)
+      - name: Build ROM
         run: |
-          # Sparse kontrolü yap ve imajı hazırla
+          # Efe-Elite-Dev Paketleme Sistemi
           simg2img miku.img A04s_Miku_AllInOne.img || cp miku.img A04s_Miku_AllInOne.img
-          echo "Build tamamlandı aga!"
+          echo "Build bitti aga, Release'e uçuyoruz!"
 
       - name: Create Miku Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0-Elite-Dev
-          name: "A04s Miku ROM - Vocaloid World Edition"
+          tag_name: v1.0-A04s-Vocaloid
+          name: "A04s Miku ROM - Project SEKA Edition"
           body: |
-            ### A04s Project SEKA GSI
-            - **Geliştirici:** Efe (@VocaloidWorld1)
-            - **Yaş:** 13 (Yakında 14!)
-            - **Cihaz:** Samsung Galaxy A04s
-            - **Açıklama:** Bu ROM, Efe-Elite-Dev tarafından GH_TOKEN gücüyle derlenmiştir.
+            ### 22 Şubat Öncesi Dev Build!
+            - **Dev:** Efe (@VocaloidWorld1)
+            - **Cihaz:** Samsung A04s
+            - **Durum:** Token Power Aktif! 🚀
           files: A04s_Miku_AllInOne.img
-          # Senin az önce eklediğin Secret burada devreye giriyor:
-          token: ${{ secrets.GH_TOKEN }}
+        env:
+          # Senin o 'her şeyi işaretlediğin' kutsal anahtar:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
