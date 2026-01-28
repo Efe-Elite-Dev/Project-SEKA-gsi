@@ -1,4 +1,4 @@
-name: A04s Elite Mouse Recovery - V30
+name: A04s Elite Mouse Recovery - V31
 
 on:
   workflow_dispatch:
@@ -31,51 +31,56 @@ jobs:
           # 1. Senin Stock Recovery (Kernel Kaynağı)
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O stock_recovery.img
           
-          # 2. OrangeFox (Mouse Destekli Arayüz Kaynağı)
-          # Bu sefer linki doğrudan sağlam bir kaynaktan çekiyoruz
+          # 2. OrangeFox Base (Arayüz Kaynağı) - Link Kontrolü Ekledik
           curl -L "https://github.com/S-S-T-D/OrangeFox_A04s_Port/releases/download/v1/OrangeFox-A04s.img" -o base.img
+          if [ ! -s base.img ]; then
+            echo "Base dosya boş, alternatif link deneniyor..."
+            wget https://github.com/S-S-T-D/OrangeFox_A04s_Port/releases/download/v1/OrangeFox-A04s.img -O base.img
+          fi
 
-      - name: Porting & Mouse Fix
+      - name: Porting Process
         run: |
-          # Stock Kernel'i kurtar
-          ./magiskboot unpack -n stock_recovery.img
-          mv kernel stock_kernel
-          rm -rf ramdisk.cpio dtb dtbo header
-          
-          # OrangeFox'u parçala
+          # Önce Base'i aç (Arayüz burada)
           ./magiskboot unpack base.img
-          rm -f kernel
-          mv stock_kernel kernel
+          mv ramdisk.cpio recovery_ramdisk.cpio
+          ./magiskboot cleanup
           
-          # Mouse ve Hassasiyet Ayarları
+          # Şimdi Stock'u aç (Kernel'i al)
+          ./magiskboot unpack -n stock_recovery.img || ./magiskboot unpack stock_recovery.img
+          
+          # Kernel Swap: OrangeFox ramdisk'ini stock kernel ile birleştir
+          rm -f ramdisk.cpio
+          mv recovery_ramdisk.cpio ramdisk.cpio
+          
+          # Mouse ve Elite Yamaları
           ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
           echo "ro.input.use_mouse=1" >> .temp_prop
           echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
           echo "ro.usb.otg=1" >> .temp_prop
           ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
           
-          # Paketle ve Samsung mührü bas
+          # Repack
           ./magiskboot repack base.img recovery_new.img
           echo -n "SEANDROIDENFORCE" >> recovery_new.img
 
       - name: Create Odin Tar
         run: |
           mv recovery_new.img recovery.img
-          tar -cvf A04s-Elite-Mouse-V30.tar recovery.img
+          tar -cvf A04s-Elite-V31-Mouse.tar recovery.img
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            A04s-Elite-Mouse-V30.tar
+            A04s-Elite-V31-Mouse.tar
             recovery.img
-          tag_name: v30-mouse-elite
-          name: "A04s Elite Mouse Recovery V30"
+          tag_name: v31-final
+          name: "A04s Elite Mouse Recovery V31"
           body: |
-            ### 🐭 OrangeFox + Mouse Support (V30)
-            - **Mouse:** Fare desteği aktif! 
-            - **Install:** `.img` ve `.zip` flaşlama desteği.
-            - **Kernel:** Orijinal A04s Kernel.
-            - **Dev:** Efe (VocaloidWorld1) 🎹🔥
+            ### 🦊 OrangeFox V31 - Mouse & Port
+            - **Fix:** Unpack sırası değiştirildi, ASN.1 hatası bypass edildi.
+            - **Mouse:** Fare desteği aktif.
+            - **Kernel:** Samsung A04s Stock.
+            - **Dev:** Efe 🎹🔥
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
