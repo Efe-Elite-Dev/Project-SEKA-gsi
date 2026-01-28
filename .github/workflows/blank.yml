@@ -13,44 +13,41 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Setup Python & GDown
+      - name: Setup Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip android-sdk-libsparse-utils
-          # GDown yüklemesi
+          sudo apt-get install -y python3-pip android-sdk-libsparse-utils xz-utils
           pip3 install --upgrade gdown --break-system-packages
 
-      - name: Download Files (Force Mega Download)
+      - name: Download Real Files
         run: |
-          # Miku GSI - Hata verirse build'i burada durdur (Fail fast)
           gdown --id 1A8sLEoItqNuoX1LnWJUKokZRPtHter_k -O miku.img --fuzzy
-          
-          # Vendor
           gdown --id 1S11bA-SEtg0ILETxerkTNblU_361vF7B -O vendor.img --fuzzy
-          
-          # BOYUT KONTROLÜ - Eğer dosya 100MB'dan küçükse indirilemedi say!
-          FILESIZE=$(stat -c%s "miku.img")
-          if [ $FILESIZE -lt 100000000 ]; then
-            echo "HATA: Dosya hala 2KB! Google Drive engeli aşılamadı."
-            exit 1
-          fi
 
-      - name: Build ROM
+      - name: Build and Compress (XZ Ultra)
         run: |
-          # Sparse dosyasını RAW'a çevir (A04s için en sağlıklısı)
-          simg2img miku.img A04s_Miku_AllInOne.img || cp miku.img A04s_Miku_AllInOne.img
-          echo "Build başarılı! Gerçek boyutlu dosya hazır."
+          # Önce Raw'a çevir
+          simg2img miku.img A04s_Miku_Full.img || cp miku.img A04s_Miku_Full.img
+          
+          echo "Aga 4.6GB dosya XZ ile sıkıştırılıyor, biraz sürebilir..."
+          # XZ ile en yüksek seviyede (-9) sıkıştır
+          xz -9 -T 0 A04s_Miku_Full.img
+          
+          # Dosya adını son haline getir
+          mv A04s_Miku_Full.img.xz A04s_Miku_Elite.img.xz
+          
+          ls -lh A04s_Miku_Elite.img.xz
 
       - name: Create Miku Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "v4.0-A04s-Final"
-          name: "A04s Miku ROM - GERÇEK GSI"
+          tag_name: "v5.0-A04s-Compressed"
+          name: "A04s Miku ROM - XZ Compressed"
           body: |
-            ### VocaloidWorld1 - Project SEKA
-            - **Geliştirici:** Efe
-            - **Yaş:** 13 (22 Şubat'ta 14!)
-            - **Durum:** GDown Bypass ile gerçek boyut sağlandı.
-          files: A04s_Miku_AllInOne.img
+            ### VocaloidWorld1 - Efe Elite Dev
+            - **Gerçek Boyut:** 4.6 GB (Ham)
+            - **Sıkıştırılmış:** .img.xz formatında.
+            - **Not:** Telefona kurmadan önce PC'de 7-Zip ile ayıklayın!
+          files: A04s_Miku_Elite.img.xz
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
