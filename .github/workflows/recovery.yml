@@ -1,4 +1,4 @@
-name: A04s Elite Recovery V34 - VBMETA Fix
+name: A04s Elite Recovery V35 - VBMETA Fix
 
 on:
   workflow_dispatch:
@@ -28,18 +28,22 @@ jobs:
 
       - name: Download Your Files
         run: |
-          # 1. Senin Stock Recovery
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
-          # 2. Senin Gönderdiğin VBMETA (lz4 formatında)
           gdown "https://drive.google.com/uc?id=1iKVqWtQLJdI3PCGiaeth0AmMjXpG4Wpx" -O vbmeta.img.lz4
 
-      - name: Patch VBMETA
+      - name: Manual VBMETA Patch (Python)
         run: |
-          # LZ4 dosyasını aç (Ham imajı elde et)
+          # LZ4 dosyasını aç
           lz4 -d vbmeta.img.lz4 vbmeta.img
-          # VBMETA'yı yamala (Verity ve Verification'ı kapat)
-          # Bu komut imajın içindeki ilgili bitleri sıfırlar
-          ./magiskboot vbmeta-patch vbmeta.img
+          
+          # VBMETA doğrulamasını kapatan Python scripti
+          # Flags kısmını (offset 123) 0x03 yaparak disable_verity ve disable_verification ekliyoruz
+          python3 -c "
+          with open('vbmeta.img', 'rb+') as f:
+              f.seek(123)
+              f.write(b'\x03')
+          "
+          echo "VBMETA manuel olarak yamalandı (Flags: 0x03)"
 
       - name: Patch Recovery
         run: |
@@ -55,20 +59,19 @@ jobs:
       - name: Create Odin Rescue Tar
         run: |
           mv recovery_patched.img recovery.img
-          # Odin için recovery ve yamalı vbmeta'yı paketle
-          tar -cvf A04s-ELITE-V34-VBMETA-FIX.tar recovery.img vbmeta.img
+          tar -cvf A04s-ELITE-V35-RESCUE.tar recovery.img vbmeta.img
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: A04s-ELITE-V34-VBMETA-FIX.tar
-          tag_name: v34-vbmeta-fix
-          name: "A04s Elite V34 - VBMETA & Mouse Fix"
+          files: A04s-ELITE-V35-RESCUE.tar
+          tag_name: v35-vbmeta-manual
+          name: "A04s Elite V35 - VBMETA Manual Fix"
           body: |
-            ### 🚨 TELEFONU KURTARMA PAKETİ (V34)
-            **Aga, bu sefer oldu!**
-            - **VBMETA:** Senin gönderdiğin dosya açıldı ve doğrulaması (verification) kapatıldı.
-            - **Recovery:** Fare (Mouse) desteği ve dokunmatik fixleri eklendi.
-            - **Talimat:** Odin ile AP kısmından flaşla. Eğer hala açılmazsa "Wipe Data" yapman gerekebilir (Yedeklerin varsa dikkat!).
+            ### 🚨 KURTARMA PAKETİ V35
+            **Aga, bu sefer hata payı yok!**
+            - **VBMETA:** Python ile manuel olarak yamalandı (Flags: 0x03). 
+            - **Recovery:** Mouse desteği eklendi.
+            - **Odin:** AP kısmına koy ve flaşla.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
