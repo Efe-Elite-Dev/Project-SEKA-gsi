@@ -1,4 +1,4 @@
-name: A04s-All-In-One-Builder
+name: A04s Elite Recovery - V33 Manual
 
 on:
   workflow_dispatch:
@@ -10,44 +10,75 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip android-sdk-libsparse-utils xz-utils
-          pip3 install --upgrade gdown --break-system-packages
+          sudo apt-get install -y python3-pip wget curl p7zip-full lz4 cpio
+          pip install --break-system-packages gdown
 
-      - name: Download Real Files
+      - name: Get MagiskBoot
         run: |
-          gdown --id 1A8sLEoItqNuoX1LnWJUKokZRPtHter_k -O miku.img --fuzzy
-          gdown --id 1S11bA-SEtg0ILETxerkTNblU_361vF7B -O vendor.img --fuzzy
+          wget https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
+          7z e Magisk-v27.0.apk "lib/x86_64/libmagiskboot.so"
+          mv libmagiskboot.so magiskboot
+          chmod +x magiskboot
 
-      - name: Build and Compress (XZ Ultra)
+      - name: Download Stock Recovery
         run: |
-          # Önce Raw'a çevir
-          simg2img miku.img A04s_Miku_Full.img || cp miku.img A04s_Miku_Full.img
-          
-          echo "Aga 4.6GB dosya XZ ile sıkıştırılıyor, biraz sürebilir..."
-          # XZ ile en yüksek seviyede (-9) sıkıştır
-          xz -9 -T 0 A04s_Miku_Full.img
-          
-          # Dosya adını son haline getir
-          mv A04s_Miku_Full.img.xz A04s_Miku_Elite.img.xz
-          
-          ls -lh A04s_Miku_Elite.img.xz
+          gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
 
-      - name: Create Miku Release
+      - name: Manual Ramdisk Patching
+        run: |
+          # 1. İmajı parçala (ASN.1 hatasını salla, kernel ve ramdisk.cpio çıkacak)
+          ./magiskboot unpack -n recovery.img || ./magiskboot unpack recovery.img
+          
+          # 2. Ramdisk'i manuel açmayı dene (LZ4 veya GZIP)
+          mkdir ramdisk_dir
+          cd ramdisk_dir
+          # Ramdisk'i manuel olarak çıkartıyoruz
+          lz4 -d ../ramdisk.cpio -c | cpio -idm || zcat ../ramdisk.cpio | cpio -idm || cpio -idm < ../ramdisk.cpio || echo "Manuel açma başarısız!"
+          
+          # 3. Elite Ayarlarını Enjekte Et (prop.default veya default.prop)
+          TARGET_PROP=$(find . -name "prop.default" -o -name "default.prop" | head -n 1)
+          if [ -f "$TARGET_PROP" ]; then
+            echo "Aga prop dosyası bulundu: $TARGET_PROP"
+            echo "ro.input.use_mouse=1" >> "$TARGET_PROP"
+            echo "persist.vendor.touch.high_sensitivity=1" >> "$TARGET_PROP"
+            echo "ro.usb.otg=1" >> "$TARGET_PROP"
+            echo "ro.debuggable=1" >> "$TARGET_PROP"
+          else
+            echo "ro.input.use_mouse=1" >> prop.default
+          fi
+          
+          # 4. Ramdisk'i geri topla (GZIP formatında)
+          find . | cpio -H newc -o | gzip > ../ramdisk_new.cpio
+          cd ..
+          
+          # 5. MagiskBoot ile ramdisk'i değiştir ve topla
+          mv ramdisk_new.cpio ramdisk.cpio
+          ./magiskboot repack recovery.img recovery_new.img
+          echo -n "SEANDROIDENFORCE" >> recovery_new.img
+
+      - name: Create Odin Tar
+        run: |
+          mv recovery_new.img recovery.img
+          tar -cvf A04s-Elite-V33-Manual.tar recovery.img
+
+      - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "v5.0-A04s-Compressed"
-          name: "A04s Miku ROM - XZ Compressed"
+          files: |
+            A04s-Elite-V33-Manual.tar
+            recovery.img
+          tag_name: v33-manual
+          name: "A04s Elite Recovery V33 - Manual Patch"
           body: |
-            ### VocaloidWorld1 - Efe Elite Dev
-            - **Gerçek Boyut:** 4.6 GB (Ham)
-            - **Sıkıştırılmış:** .img.xz formatında.
-            - **Not:** Telefona kurmadan önce PC'de 7-Zip ile ayıklayın!
-          files: A04s_Miku_Elite.img.xz
+            ### 🎹 A04s Elite V33 (Manual Decompress)
+            - **Fix:** MagiskBoot'un açamadığı cpio manuel olarak `lz4/gzip` ile açıldı.
+            - **Mouse:** Fare ve OTG desteği kodları enjekte edildi.
+            - **Odin:** Samsung A04s A14 uyumlu.
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
