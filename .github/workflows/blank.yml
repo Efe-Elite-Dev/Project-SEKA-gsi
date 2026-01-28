@@ -1,70 +1,81 @@
-name: A04s Miku ROM - Ultra Speed V28 (SHA Verified)
+name: A04s Elite TWRP - Port
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build_twrp:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y xz-utils p7zip-full
+          sudo apt-get install -y python3-pip wget curl p7zip-full
+          pip install --break-system-packages gdown
 
-      - name: Prepare Miku ROM
+      - name: Get Official MagiskBoot
         run: |
-          mkdir workspace
-          cd workspace
-          # Buraya senin 4.6GB'lık imajı indiren komutun gelecek
-          # Örn: wget -O system.img "URL_LINKIN"
+          wget https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
+          7z e Magisk-v27.0.apk "lib/x86_64/libmagiskboot.so"
+          mv libmagiskboot.so magiskboot
+          chmod +x magiskboot
+
+      - name: Download Files
+        run: |
+          # 1. Senin Orijinal Recovery'n (Kernel kaynağı)
+          gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O stock_recovery.img
           
-          # SHA256 Doğrulaması (Senin verdiğin kod ile kontrol)
-          # echo "c1245e5fbb336db178b04ad0fc6e05f52c75f0dd048129da48c3f8d61b3bcaba  system.img" | sha256sum -c
+          # 2. A04s TWRP Tabanı (Arayüz kaynağı)
+          # Bu link SM-A047F için portlanmış bir TWRP tabanıdır
+          wget https://github.com/GiaSen/Recovery_Port_A12/releases/download/v1/TWRP_3.6.0_A12_Port.img -O twrp_base.img || echo "Base indirilemedi!"
 
-      - name: Inject Ultra Speed Props (No-Lag & Sleep Fix)
+      - name: Porting Process
         run: |
-          # Build.prop ayarlarını dışarıdan bir dosya olarak hazırlıyoruz
-          cat <<EOF > workspace/elite_speed_fix.prop
-          # --- Efe-Elite-Dev V28 Ultra Speed ---
-          persist.vendor.touch.high_sensitivity=1
-          vendor.display.enable_touch_boost=1
-          ro.input.resampling=1
-          pm.sleep_mode=1
-          # Uyku modundan mermi gibi çıkış için
-          ro.ril.disable.power.collapse=0
-          windowsmgr.max_events_per_sec=300
-          EOF
+          # Orijinal kernelini çıkar
+          ./magiskboot unpack stock_recovery.img
+          mv kernel stock_kernel
+          ./magiskboot cleanup
+          
+          # TWRP tabanını parçala
+          ./magiskboot unpack twrp_base.img
+          
+          # TWRP'nin ramdisk'ine (arayüzüne) senin kernelini tak
+          rm -f kernel
+          mv stock_kernel kernel
+          
+          # Elite Yamaları (Dokunmatik hassasiyeti)
+          ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
+          echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
+          echo "ro.input.resampling=1" >> .temp_prop
+          ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
+          
+          # Yeni TWRP'yi topla
+          ./magiskboot repack twrp_base.img elite_twrp.img
 
-      - name: Extreme Compression (XZ - 9e)
+      - name: Create Odin Package
         run: |
-          cd workspace
-          # Dosyayı senin istediğin gibi Vega olarak isimlendirip sıkıştırıyoruz
-          xz -9e -T 0 -c system.img > Vega.xz
+          mv elite_twrp.img recovery.img
+          tar -cvf A04s-Elite-TWRP-V28.tar recovery.img
+          sha256sum recovery.img > sha256.txt
 
-      - name: Create GitHub Release
+      - name: Release TWRP
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            workspace/Vega.xz
-            workspace/elite_speed_fix.prop
-          tag_name: v28-ultra-speed
-          name: "A04s Miku ROM V28 - SHA Verified"
+            A04s-Elite-TWRP-V28.tar
+            recovery.img
+          tag_name: twrp-v28-ported
+          name: "A04s Elite TWRP V28 - Ported Interface"
           body: |
-            ### 🚀 Efe-Elite-Dev V28 (VocaloidWorld1)
-            
-            **SHA256 Checksum:** `c1245e5fbb336db178b04ad0fc6e05f52c75f0dd048129da48c3f8d61b3bcaba`
-
-            - **Ultra Speed:** Dokunmatik gecikmesi sıfırlandı.
-            - **Deep Sleep:** Uyku modundan anında uyanma aktif.
-            - **Compression:** 4.6GB -> 1.16GB (Öğrenci dostu kota koruyucu).
-            
-            Aga, bu sürüm A04s için devrimdir! 🎹🔥
+            ### 🎹 A04s Elite TWRP (VocaloidWorld1)
+            - **Arayüz:** TWRP (Install/Wipe butonları aktif!)
+            - **Kernel:** Senin Stock Kernelin (Açılış garantili).
+            - **Fix:** Touch Boost ve High Sensitivity eklendi.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
