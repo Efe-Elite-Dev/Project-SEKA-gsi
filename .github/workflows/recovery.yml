@@ -1,10 +1,10 @@
-name: A04s Elite TWRP - Port
+name: A04s Elite OrangeFox - Port
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_twrp:
+  build_ofox:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -28,54 +28,54 @@ jobs:
 
       - name: Download Files
         run: |
-          # 1. Senin Orijinal Recovery'n (Kernel kaynağı)
+          # 1. Senin Orijinal Recovery'n
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O stock_recovery.img
           
-          # 2. A04s TWRP Tabanı (Arayüz kaynağı)
-          # Bu link SM-A047F için portlanmış bir TWRP tabanıdır
-          wget https://github.com/GiaSen/Recovery_Port_A12/releases/download/v1/TWRP_3.6.0_A12_Port.img -O twrp_base.img || echo "Base indirilemedi!"
+          # 2. OrangeFox Base (SM-A047F Portu) - Sağlam Link
+          curl -L "https://github.com/S-S-T-D/OrangeFox_A04s_Port/releases/download/v1/OrangeFox-A04s.img" -o ofox_base.img || \
+          wget https://github.com/S-S-T-D/OrangeFox_A04s_Port/releases/download/v1/OrangeFox-A04s.img -O ofox_base.img
 
       - name: Porting Process
         run: |
           # Orijinal kernelini çıkar
           ./magiskboot unpack stock_recovery.img
           mv kernel stock_kernel
-          ./magiskboot cleanup
+          # Çöp dosyaları temizle (Hata almamak için manuel temizlik)
+          rm -f ramdisk.cpio dtb dtbo header kernel
           
-          # TWRP tabanını parçala
-          ./magiskboot unpack twrp_base.img
+          # OrangeFox tabanını parçala
+          ./magiskboot unpack ofox_base.img
           
-          # TWRP'nin ramdisk'ine (arayüzüne) senin kernelini tak
+          # OrangeFox'un ramdisk'ine senin kernelini tak
           rm -f kernel
           mv stock_kernel kernel
           
-          # Elite Yamaları (Dokunmatik hassasiyeti)
+          # Elite Yamaları
           ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
           echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
           echo "ro.input.resampling=1" >> .temp_prop
           ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
           
-          # Yeni TWRP'yi topla
-          ./magiskboot repack twrp_base.img elite_twrp.img
+          # Paketle
+          ./magiskboot repack ofox_base.img elite_orangefox.img
 
       - name: Create Odin Package
         run: |
-          mv elite_twrp.img recovery.img
-          tar -cvf A04s-Elite-TWRP-V28.tar recovery.img
-          sha256sum recovery.img > sha256.txt
+          mv elite_orangefox.img recovery.img
+          tar -cvf A04s-Elite-OrangeFox-V28.tar recovery.img
 
-      - name: Release TWRP
+      - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            A04s-Elite-TWRP-V28.tar
+            A04s-Elite-OrangeFox-V28.tar
             recovery.img
-          tag_name: twrp-v28-ported
-          name: "A04s Elite TWRP V28 - Ported Interface"
+          tag_name: ofox-v28-ported
+          name: "A04s Elite OrangeFox V28 - Ported"
           body: |
-            ### 🎹 A04s Elite TWRP (VocaloidWorld1)
-            - **Arayüz:** TWRP (Install/Wipe butonları aktif!)
-            - **Kernel:** Senin Stock Kernelin (Açılış garantili).
-            - **Fix:** Touch Boost ve High Sensitivity eklendi.
+            ### 🦊 A04s Elite OrangeFox (VocaloidWorld1)
+            - **Arayüz:** OrangeFox (TWRP'den daha havalı!)
+            - **Kernel:** Senin Orijinal Kernelin.
+            - **Özellik:** Install / Wipe / Backup / File Manager aktif.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
