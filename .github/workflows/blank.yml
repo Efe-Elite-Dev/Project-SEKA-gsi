@@ -13,30 +13,44 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Download Files (Google Drive Security Bypass)
+      - name: Setup Python & GDown
         run: |
-          # Miku GSI (Gerçek GB Boyutu İçin)
-          wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -O miku.img && rm -rf /tmp/cookies.txt
-          
-          # Vendor (Gerçek GB Boyutu İçin)
-          wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -O vendor.img && rm -rf /tmp/cookies.txt
+          sudo apt-get update
+          sudo apt-get install -y python3-pip android-sdk-libsparse-utils
+          # GDown yüklemesi
+          pip3 install --upgrade gdown --break-system-packages
 
-      - name: Check Real Size
+      - name: Download Files (Force Mega Download)
         run: |
-          # Burada 1G, 2G gibi değerler görmeliyiz
-          ls -lh *.img
+          # Miku GSI - Hata verirse build'i burada durdur (Fail fast)
+          gdown --id 1A8sLEoItqNuoX1LnWJUKokZRPtHter_k -O miku.img --fuzzy
+          
+          # Vendor
+          gdown --id 1S11bA-SEtg0ILETxerkTNblU_361vF7B -O vendor.img --fuzzy
+          
+          # BOYUT KONTROLÜ - Eğer dosya 100MB'dan küçükse indirilemedi say!
+          FILESIZE=$(stat -c%s "miku.img")
+          if [ $FILESIZE -lt 100000000 ]; then
+            echo "HATA: Dosya hala 2KB! Google Drive engeli aşılamadı."
+            exit 1
+          fi
 
       - name: Build ROM
         run: |
-          sudo apt-get update && sudo apt-get install -y android-sdk-libsparse-utils
+          # Sparse dosyasını RAW'a çevir (A04s için en sağlıklısı)
           simg2img miku.img A04s_Miku_AllInOne.img || cp miku.img A04s_Miku_AllInOne.img
+          echo "Build başarılı! Gerçek boyutlu dosya hazır."
 
       - name: Create Miku Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "v2.0-A04s-RealSize"
-          name: "A04s Miku ROM - GERÇEK BOYUT"
-          body: "Efe-Elite-Dev: Bu sefer 2KB değil, gerçek Gigabaytlar burada! 🎹🔥"
+          tag_name: "v4.0-A04s-Final"
+          name: "A04s Miku ROM - GERÇEK GSI"
+          body: |
+            ### VocaloidWorld1 - Project SEKA
+            - **Geliştirici:** Efe
+            - **Yaş:** 13 (22 Şubat'ta 14!)
+            - **Durum:** GDown Bypass ile gerçek boyut sağlandı.
           files: A04s_Miku_AllInOne.img
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
