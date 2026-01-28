@@ -1,4 +1,4 @@
-name: A04s Elite Recovery - Drive Folder Build
+name: A04s Elite Recovery - Full Auto V28
 
 on:
   workflow_dispatch:
@@ -10,67 +10,70 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Tools
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip xz-utils file p7zip-full rsync
+          sudo apt-get install -y python3-pip xz-utils file p7zip-full
           pip install gdown
 
-      - name: Download AIK and Recovery from Drive
+      - name: Setup AIK (Source Build)
         run: |
-          # 1. Drive Klasöründeki AIK Dosyalarını Çek (Senin verdiğin klasör)
-          gdown --folder "https://drive.google.com/drive/folders/1SJ5Jnw3sSUXir0yZmURUgkpWrSK1YDPo" -O aik_files
-          
-          # 2. Orijinal Recovery İmajını Çek
-          gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
-
-      - name: Setup AIK Environment
-        run: |
-          # Klasörden ana dizine taşı ve yetkileri ver
-          cp -r aik_files/* .
+          # AIK'ı kaynağından çekiyoruz
+          git clone https://github.com/osm0sis/Android-Image-Kitchen.git AIK
+          # Dosyaları ana dizine çıkarıyoruz
+          cp -r AIK/* .
+          # Binaries ve scriptler için tam yetki
           chmod -R +x .
           chmod -R +x bin/
-          # Bazı sistemlerde bin dosyaları için ek yetki gerekir
           find bin/ -type f -exec chmod +x {} +
+
+      - name: Download Your Stock Recovery
+        run: |
+          # Senin Drive'daki o orijinal imajı çekiyoruz
+          gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
 
       - name: Unpack and Elite Patch
         run: |
-          # Artık dosyalar ana dizinde olduğu için ./unpackimg.sh doğrudan çalışır
+          # İmajı parçala
           ./unpackimg.sh recovery.img
           
-          # --- Elite-Speed & Touch Fix (Efe V28 Settings) ---
-          # Ramdisk içindeki tüm prop dosyalarına sızıyoruz
-          find ramdisk/ -name "*.prop" -o -name "prop.default" | xargs -I {} sh -c 'echo "persist.vendor.touch.high_sensitivity=1" >> {}'
-          find ramdisk/ -name "*.prop" -o -name "prop.default" | xargs -I {} sh -c 'echo "ro.input.resampling=1" >> {}'
-          find ramdisk/ -name "*.prop" -o -name "prop.default" | xargs -I {} sh -c 'echo "vendor.display.enable_touch_boost=1" >> {}'
+          # --- Elite-Speed & Touch Fix ---
+          # Dokunmatik hassasiyeti ve uyku modu gecikme ayarlarını gömüyoruz
+          for prop in $(find ramdisk/ -name "*.prop" -o -name "prop.default"); do
+            echo "persist.vendor.touch.high_sensitivity=1" >> "$prop"
+            echo "ro.input.resampling=1" >> "$prop"
+            echo "vendor.display.enable_touch_boost=1" >> "$prop"
+            echo "pm.sleep_mode=1" >> "$prop"
+          done
           
-          # Recovery'yi tekrar paketle
+          # Tekrar paketle
           ./repackimg.sh
 
-      - name: Pack and Release
+      - name: Prepare Odin Package
         run: |
-          # Yeni imajı Samsung formatına (.tar) sok
+          # Samsung için .tar yapma zamanı
           mv image-new.img recovery.img
           tar -cvf A04s-Elite-Recovery.tar recovery.img
           sha256sum recovery.img > sha256.txt
 
-      - name: Release to World
+      - name: Release the Final Product
         uses: softprops/action-gh-release@v1
         with:
           files: |
             A04s-Elite-Recovery.tar
             recovery.img
             sha256.txt
-          tag_name: recovery-v28-drive-folder
-          name: "A04s Elite Recovery V28 - Drive Powered"
+          tag_name: recovery-v28-auto
+          name: "A04s Elite Recovery V28 - Auto Build"
           body: |
             ### 🚀 A04s Elite Recovery (VocaloidWorld1)
-            - **Kaynak:** Kişisel Drive Klasörü (Telif dostu build).
-            - **Hız:** Ultra Touch Sensitivity ve Low Latency fixleri uygulandı.
-            - **Format:** Odin (.tar) ve Raw (.img).
-            - **Geliştirici:** Efe (Elite Dev) 🎹🔥
+            - **Build Mode:** Full Automatic (No local files needed).
+            - **Optimizations:** Touch Boost & Deep Sleep Fix.
+            - **Developer:** Efe (Elite Dev)
+            
+            Aga, sonunda başardık! Bu recovery ile A04s mermi gibi olacak. 🎹🔥
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
