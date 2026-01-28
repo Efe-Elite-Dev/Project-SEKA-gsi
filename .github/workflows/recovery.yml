@@ -1,10 +1,10 @@
-name: A04s Elite Lineage Mouse - Port
+name: A04s Elite Mouse Recovery - V30
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_lineage:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,68 +26,56 @@ jobs:
           mv libmagiskboot.so magiskboot
           chmod +x magiskboot
 
-      - name: Download Recovery Files
+      - name: Download Files
         run: |
-          # 1. Senin Orijinal Recovery'n
+          # 1. Senin Stock Recovery (Kernel Kaynağı)
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O stock_recovery.img
           
-          # 2. LineageOS Recovery Base (Sağlam ve Mouse destekli çekirdekli yapı)
-          # A04s için stabilize edilmiş Lineage tabanını çekiyoruz
-          wget https://github.com/TwrpBuilder/android_device_samsung_a04s/releases/download/recovery/recovery.img -O lineage_base.img
+          # 2. OrangeFox (Mouse Destekli Arayüz Kaynağı)
+          # Bu sefer linki doğrudan sağlam bir kaynaktan çekiyoruz
+          curl -L "https://github.com/S-S-T-D/OrangeFox_A04s_Port/releases/download/v1/OrangeFox-A04s.img" -o base.img
 
-      - name: Porting & Mouse/IMG Injection
+      - name: Porting & Mouse Fix
         run: |
-          # Kernel'i stocktan al (Cihazın açılması için şart)
+          # Stock Kernel'i kurtar
           ./magiskboot unpack -n stock_recovery.img
           mv kernel stock_kernel
           rm -rf ramdisk.cpio dtb dtbo header
           
-          # Lineage tabanını aç (Arayüzü çalıyoruz)
-          ./magiskboot unpack lineage_base.img
+          # OrangeFox'u parçala
+          ./magiskboot unpack base.img
           rm -f kernel
           mv stock_kernel kernel
           
-          # Ramdisk düzenleme: Mouse ve Image Flash desteği
+          # Mouse ve Hassasiyet Ayarları
           ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
-          
-          # Mouse/Fare desteği için gereken sistem ayarları
-          echo "ro.input.no_ui_touch=0" >> .temp_prop
           echo "ro.input.use_mouse=1" >> .temp_prop
-          echo "ro.usb.otg=1" >> .temp_prop
-          
-          # Dokunmatik ve Versiyon Bilgisi
           echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
-          echo "ro.lineage.build.version=21.0-Elite-Mouse" >> .temp_prop
-          
-          # Image Flash desteği için debug modları
-          echo "ro.debuggable=1" >> .temp_prop
-          echo "ro.allow.mock.location=1" >> .temp_prop
-          echo "persist.sys.usb.config=mtp,adb" >> .temp_prop
-          
+          echo "ro.usb.otg=1" >> .temp_prop
           ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
           
-          # Yeniden Paketle
-          ./magiskboot repack lineage_base.img elite_lineage_mouse.img
-          echo -n "SEANDROIDENFORCE" >> elite_lineage_mouse.img
+          # Paketle ve Samsung mührü bas
+          ./magiskboot repack base.img recovery_new.img
+          echo -n "SEANDROIDENFORCE" >> recovery_new.img
 
       - name: Create Odin Tar
         run: |
-          mv elite_lineage_mouse.img recovery.img
-          tar -cvf A04s-Lineage-Mouse-V29.tar recovery.img
+          mv recovery_new.img recovery.img
+          tar -cvf A04s-Elite-Mouse-V30.tar recovery.img
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            A04s-Lineage-Mouse-V29.tar
+            A04s-Elite-Mouse-V30.tar
             recovery.img
-          tag_name: lineage-v29-mouse
-          name: "A04s Elite Lineage Mouse V29"
+          tag_name: v30-mouse-elite
+          name: "A04s Elite Mouse Recovery V30"
           body: |
-            ### 🐭 A04s Elite Lineage + Mouse Support
-            - **Mouse Support:** OTG Fare desteği aktif! Dokunmatik çalışmasa da fareyle gezebilirsin.
-            - **Image Flash:** Gelişmiş menüden `.img` flaşlama desteği denendi.
-            - **Arayüz:** Sade LineageOS Recovery.
-            - **Kernel:** Samsung A04s Stock A14 Kernel.
+            ### 🐭 OrangeFox + Mouse Support (V30)
+            - **Mouse:** Fare desteği aktif! 
+            - **Install:** `.img` ve `.zip` flaşlama desteği.
+            - **Kernel:** Orijinal A04s Kernel.
+            - **Dev:** Efe (VocaloidWorld1) 🎹🔥
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
