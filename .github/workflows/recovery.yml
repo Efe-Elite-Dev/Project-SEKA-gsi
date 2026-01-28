@@ -1,4 +1,4 @@
-name: A04s Elite Recovery - Full Auto V28
+name: A04s Elite Recovery - Armored V28
 
 on:
   workflow_dispatch:
@@ -19,43 +19,42 @@ jobs:
           sudo apt-get install -y python3-pip xz-utils file p7zip-full
           pip install gdown
 
-      - name: Setup AIK (Source Build)
+      - name: Setup AIK (Source & Direct Access)
         run: |
-          # AIK'ı kaynağından çekiyoruz
+          # AIK'ı klonla
           git clone https://github.com/osm0sis/Android-Image-Kitchen.git AIK
-          # Dosyaları ana dizine çıkarıyoruz
-          cp -r AIK/* .
-          # Binaries ve scriptler için tam yetki
-          chmod -R +x .
-          chmod -R +x bin/
-          find bin/ -type f -exec chmod +x {} +
-
-      - name: Download Your Stock Recovery
+          
+          # Dosyaları kopyalamak yerine klasörün içine girip çalışacağız, daha güvenli!
+          chmod -R +x AIK/*.sh
+          chmod -R +x AIK/bin/
+          
+      - name: Download Stock Recovery
         run: |
-          # Senin Drive'daki o orijinal imajı çekiyoruz
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
+          # İmajı AIK klasörüne taşıyalım ki her şey bir arada olsun
+          mv recovery.img AIK/
 
       - name: Unpack and Elite Patch
         run: |
-          # İmajı parçala
+          cd AIK
+          # Unpack işlemini klasör içinden başlat
           ./unpackimg.sh recovery.img
           
           # --- Elite-Speed & Touch Fix ---
-          # Dokunmatik hassasiyeti ve uyku modu gecikme ayarlarını gömüyoruz
-          for prop in $(find ramdisk/ -name "*.prop" -o -name "prop.default"); do
-            echo "persist.vendor.touch.high_sensitivity=1" >> "$prop"
-            echo "ro.input.resampling=1" >> "$prop"
-            echo "vendor.display.enable_touch_boost=1" >> "$prop"
-            echo "pm.sleep_mode=1" >> "$prop"
-          done
+          # Ramdisk içindeki prop dosyalarına hız ve uyanma fixlerini göm
+          find ramdisk/ -name "*.prop" -o -name "prop.default" | xargs -I {} sh -c '
+            echo "persist.vendor.touch.high_sensitivity=1" >> {}
+            echo "ro.input.resampling=1" >> {}
+            echo "vendor.display.enable_touch_boost=1" >> {}
+          '
           
-          # Tekrar paketle
+          # Repack işlemi
           ./repackimg.sh
 
       - name: Prepare Odin Package
         run: |
-          # Samsung için .tar yapma zamanı
-          mv image-new.img recovery.img
+          # Oluşan imajı AIK klasöründen çıkarıp ana dizine al
+          mv AIK/image-new.img recovery.img
           tar -cvf A04s-Elite-Recovery.tar recovery.img
           sha256sum recovery.img > sha256.txt
 
@@ -66,14 +65,13 @@ jobs:
             A04s-Elite-Recovery.tar
             recovery.img
             sha256.txt
-          tag_name: recovery-v28-auto
-          name: "A04s Elite Recovery V28 - Auto Build"
+          tag_name: recovery-v28-armored
+          name: "A04s Elite Recovery V28 - Armored Build"
           body: |
             ### 🚀 A04s Elite Recovery (VocaloidWorld1)
-            - **Build Mode:** Full Automatic (No local files needed).
-            - **Optimizations:** Touch Boost & Deep Sleep Fix.
-            - **Developer:** Efe (Elite Dev)
-            
-            Aga, sonunda başardık! Bu recovery ile A04s mermi gibi olacak. 🎹🔥
+            - **Build Status:** Fixed "bin/" access error.
+            - **Optimizations:** Ultra Touch Boost & No-Lag UI.
+            - **Format:** Odin (.tar) & Flashable (.img).
+            - **Dev:** Efe (13 but Elite) 🎹🔥
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
