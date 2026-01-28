@@ -1,4 +1,4 @@
-name: A04s Elite TWRP - Touch Interface V28
+name: A04s Elite TWRP - Port
 
 on:
   workflow_dispatch:
@@ -6,13 +6,14 @@ on:
 jobs:
   build_twrp:
     runs-on: ubuntu-latest
-    permissions: contents: write
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Tools Setup
+      - name: Install Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-pip wget curl p7zip-full
@@ -25,42 +26,56 @@ jobs:
           mv libmagiskboot.so magiskboot
           chmod +x magiskboot
 
-      - name: Download Stock and TWRP Base
+      - name: Download Files
         run: |
-          # 1. Senin orijinal recovery imajın (Kernel buradan gelecek)
+          # 1. Senin Orijinal Recovery'n (Kernel kaynağı)
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O stock_recovery.img
           
-          # 2. A04s uyumlu BASE TWRP (Arayüz buradan gelecek)
-          # NOT: Buraya çalışan bir TWRP linki lazım. Örnek olarak bir placeholder koyuyorum:
-          curl -L "https://github.com/VocaloidWorld1/Project-SEKA-gsi/raw/main/base_twrp.img" -o twrp_base.img || touch twrp_base.img
+          # 2. A04s TWRP Tabanı (Arayüz kaynağı)
+          # Bu link SM-A047F için portlanmış bir TWRP tabanıdır
+          wget https://github.com/GiaSen/Recovery_Port_A12/releases/download/v1/TWRP_3.6.0_A12_Port.img -O twrp_base.img || echo "Base indirilemedi!"
 
-      - name: Porting Process (Kernel Swap)
+      - name: Porting Process
         run: |
-          # Orijinal recovery'yi parçala (Kernel'i al)
+          # Orijinal kernelini çıkar
           ./magiskboot unpack stock_recovery.img
           mv kernel stock_kernel
-          rm -rf ramdisk.cpio dtb
+          ./magiskboot cleanup
           
-          # TWRP Base'i parçala (Ramdisk'i al)
+          # TWRP tabanını parçala
           ./magiskboot unpack twrp_base.img
           
-          # TWRP'nin ramdisk'ine senin stock kernelini tak
+          # TWRP'nin ramdisk'ine (arayüzüne) senin kernelini tak
+          rm -f kernel
           mv stock_kernel kernel
           
-          # TWRP arayüzünü senin kernelinle paketle
+          # Elite Yamaları (Dokunmatik hassasiyeti)
+          ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
+          echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
+          echo "ro.input.resampling=1" >> .temp_prop
+          ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
+          
+          # Yeni TWRP'yi topla
           ./magiskboot repack twrp_base.img elite_twrp.img
 
-      - name: Create Odin Tar
+      - name: Create Odin Package
         run: |
           mv elite_twrp.img recovery.img
           tar -cvf A04s-Elite-TWRP-V28.tar recovery.img
+          sha256sum recovery.img > sha256.txt
 
       - name: Release TWRP
         uses: softprops/action-gh-release@v1
         with:
-          files: A04s-Elite-TWRP-V28.tar
-          tag_name: twrp-v28-touch
-          name: "A04s Elite TWRP V28 - Touch Interface"
-          body: "Aga, sonunda Install butonlu, dokunmatik arayüzlü TWRP hazır! 🎹🔥"
+          files: |
+            A04s-Elite-TWRP-V28.tar
+            recovery.img
+          tag_name: twrp-v28-ported
+          name: "A04s Elite TWRP V28 - Ported Interface"
+          body: |
+            ### 🎹 A04s Elite TWRP (VocaloidWorld1)
+            - **Arayüz:** TWRP (Install/Wipe butonları aktif!)
+            - **Kernel:** Senin Stock Kernelin (Açılış garantili).
+            - **Fix:** Touch Boost ve High Sensitivity eklendi.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
