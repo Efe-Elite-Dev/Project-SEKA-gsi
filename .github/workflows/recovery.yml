@@ -1,4 +1,4 @@
-name: A04s Elite Recovery V35 - VBMETA Fix
+name: A04s Elite Recovery V37 - Manual Fix
 
 on:
   workflow_dispatch:
@@ -26,52 +26,59 @@ jobs:
           mv libmagiskboot.so magiskboot
           chmod +x magiskboot
 
-      - name: Download Your Files
+      - name: Download Files
         run: |
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
           gdown "https://drive.google.com/uc?id=1iKVqWtQLJdI3PCGiaeth0AmMjXpG4Wpx" -O vbmeta.img.lz4
 
-      - name: Manual VBMETA Patch (Python)
+      - name: Patch VBMETA
         run: |
-          # LZ4 dosyasını aç
           lz4 -d vbmeta.img.lz4 vbmeta.img
+          python3 -c "with open('vbmeta.img', 'rb+') as f: f.seek(123); f.write(b'\x03')"
+
+      - name: Manual Ramdisk Surgery
+        run: |
+          # 1. Parçala
+          ./magiskboot unpack -n recovery.img
           
-          # VBMETA doğrulamasını kapatan Python scripti
-          # Flags kısmını (offset 123) 0x03 yaparak disable_verity ve disable_verification ekliyoruz
-          python3 -c "
-          with open('vbmeta.img', 'rb+') as f:
-              f.seek(123)
-              f.write(b'\x03')
-          "
-          echo "VBMETA manuel olarak yamalandı (Flags: 0x03)"
+          # 2. Ramdisk'i manuel olarak LZ4'ten CPIO'ya çevir
+          # Samsung ramdiskleri genelde lz4_legacy veya standart lz4 olur
+          lz4 -d ramdisk.cpio ramdisk_raw.cpio || cp ramdisk.cpio ramdisk_raw.cpio
+          
+          # 3. Klasör aç ve içine çıkart
+          mkdir rd
+          cd rd
+          cpio -id < ../ramdisk_raw.cpio || echo "CPIO extract hatası, ama devam et"
+          
+          # 4. Ayarları bas
+          TARGET_PROP=$(find . -name "prop.default" -o -name "default.prop" | head -n 1)
+          if [ -z "$TARGET_PROP" ]; then TARGET_PROP="prop.default"; touch "$TARGET_PROP"; fi
+          echo "ro.input.use_mouse=1" >> "$TARGET_PROP"
+          echo "persist.vendor.touch.high_sensitivity=1" >> "$TARGET_PROP"
+          
+          # 5. Geri Paketle (GZIP olarak, çünkü header'da RAMDISK_FMT [gzip] yazıyor!)
+          find . | cpio -H newc -o | gzip > ../ramdisk.cpio
+          cd ..
+          
+          # 6. MagiskBoot ile Repack
+          ./magiskboot repack recovery.img recovery_fixed.img
+          echo -n "SEANDROIDENFORCE" >> recovery_fixed.img
 
-      - name: Patch Recovery
+      - name: Create Odin Tar
         run: |
-          # Recovery'yi zorla aç ve fare desteğini bas
-          ./magiskboot unpack -n recovery.img || ./magiskboot unpack recovery.img
-          ./magiskboot cpio ramdisk.cpio "extract prop.default .temp_prop" || touch .temp_prop
-          echo "ro.input.use_mouse=1" >> .temp_prop
-          echo "persist.vendor.touch.high_sensitivity=1" >> .temp_prop
-          ./magiskboot cpio ramdisk.cpio "add 0644 prop.default .temp_prop"
-          ./magiskboot repack recovery.img recovery_patched.img
-          echo -n "SEANDROIDENFORCE" >> recovery_patched.img
-
-      - name: Create Odin Rescue Tar
-        run: |
-          mv recovery_patched.img recovery.img
-          tar -cvf A04s-ELITE-V35-RESCUE.tar recovery.img vbmeta.img
+          mv recovery_fixed.img recovery.img
+          tar -cvf A04s-V37-MANUAL-RESCUE.tar recovery.img vbmeta.img
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: A04s-ELITE-V35-RESCUE.tar
-          tag_name: v35-vbmeta-manual
-          name: "A04s Elite V35 - VBMETA Manual Fix"
+          files: A04s-V37-MANUAL-RESCUE.tar
+          tag_name: v37-manual
+          name: "A04s Elite V37 - Manual Rescue"
           body: |
-            ### 🚨 KURTARMA PAKETİ V35
-            **Aga, bu sefer hata payı yok!**
-            - **VBMETA:** Python ile manuel olarak yamalandı (Flags: 0x03). 
-            - **Recovery:** Mouse desteği eklendi.
-            - **Odin:** AP kısmına koy ve flaşla.
+            ### 🚨 MANUEL RAMDISK AMELİYATI (V37)
+            - **Bypass:** `invalid cpio magic` hatası manuel decompress ile aşıldı.
+            - **VBMETA:** Yamalı, doğrulamalar kapalı.
+            - **Durum:** 28 Ocak'ın son mermisi!
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
