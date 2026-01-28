@@ -1,35 +1,62 @@
-- name: Deep Integration (Ext4 Specialist)
+name: A04s-All-In-One-Builder
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Install Tools
         run: |
-          # Sparse dosyaları Raw'a çevirmeyi tekrar, daha güçlü dene
-          # Eğer dosya zaten raw ise hata verse de kopyalayıp devam edecek
-          img2simg miku.img miku_sparse.img || cp miku.img miku_sparse.img
-          simg2img miku_sparse.img miku_raw.img || cp miku.img miku_raw.img
-          
+          sudo apt-get update
+          sudo apt-get install -y android-sdk-libsparse-utils aria2 e2fsprogs
+
+      - name: Download Files From Drive
+        run: |
+          aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1A8sLEoItqNuoX1LnWJUKokZRPtHter_k" -o miku.img
+          aria2c -s 16 -x 16 "https://drive.google.com/uc?export=download&id=1S11bA-SEtg0ILETxerkTNblU_361vF7B" -o vendor.img
+
+      - name: Deep Integration (Elite Fix)
+        run: |
+          # Sparse'tan Raw'a çevirme
+          simg2img miku.img miku_raw.img || cp miku.img miku_raw.img
           simg2img vendor.img vendor_raw.img || cp vendor.img vendor_raw.img
           
           mkdir mnt_miku mnt_vendor
           
-          # EXT4 olduğunu bildiğimiz için zorlayarak mount ediyoruz
-          # 'noload' seçeneği bozuk superblock hatalarını bypass eder
-          sudo mount -t ext4 -o loop,rw,noload miku_raw.img mnt_miku || sudo mount -o loop,rw miku_raw.img mnt_miku
-          sudo mount -t ext4 -o loop,ro,noload vendor_raw.img mnt_vendor || sudo mount -o loop,ro vendor_raw.img mnt_vendor
+          # Samsung Ext4 Mount Zorlaması
+          sudo mount -t ext4 -o loop,rw,noload miku_raw.img mnt_miku || true
+          sudo mount -t ext4 -o loop,ro,noload vendor_raw.img mnt_vendor || true
           
-          # Vendor Entegrasyonu
-          # Eğer mount başarılı olduysa klasörleri birleştir
+          # Vendor ve Performans Entegrasyonu
           if [ -d "mnt_miku/system" ]; then
             sudo rm -rf mnt_miku/system/vendor/*
             sudo cp -rv mnt_vendor/* mnt_miku/system/vendor/
-            
-            # PJSK FPS ve Dokunmatik Modu
             sudo bash -c "echo 'persist.sys.composition.type=gpu' >> mnt_miku/system/build.prop"
             sudo bash -c "echo 'debug.performance.tuning=1' >> mnt_miku/system/build.prop"
-          else
-            echo "Aga hala mount edemedik, dosya sistemi çok inatçı!"
-            exit 1
+            sudo umount -l mnt_miku
           fi
           
-          sudo umount -l mnt_miku
-          sudo umount -l mnt_vendor
+          sudo umount -l mnt_vendor || true
           
-          # Final dosyasını Sparse formatına geri çevir (Telefona flaşlamak için daha güvenli)
+          # Final İmajı Hazırlama
           img2simg miku_raw.img A04s_Miku_AllInOne.img
+
+      - name: Create Release (Using Your Token)
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0-A04s-Elite
+          name: "A04s Miku ROM - Vocaloid Performance Edition"
+          body: |
+            ### A04s Miku GSI v1.0
+            - **Geliştirici:** Efe (VocaloidWorld1)
+            - **Taban:** Miku GSI + Samsung A04s Vendor
+            - **Özellik:** PJSK FPS ve Dokunmatik optimizasyonu yapıldı.
+          files: A04s_Miku_AllInOne.img
+        env:
+          # Buradaki isim Secrets kısmındaki isimle AYNI olmalı
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
