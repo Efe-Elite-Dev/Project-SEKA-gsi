@@ -1,0 +1,72 @@
+name: A04s Elite Recovery - Direct Image Patch V28
+
+on:
+  workflow_dispatch:
+
+jobs:
+  patch_recovery:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip xz-utils
+          pip install gdown
+          # Android Image Kitchen (En stabil versiyon)
+          git clone https://github.com/osm0sis/Android-Image-Kitchen.git AIK
+
+      - name: Download Recovery from Drive
+        run: |
+          # Senin verdiğin Drive linki
+          gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
+
+      - name: Unpack and Elite Patch
+        run: |
+          cd AIK
+          mv ../recovery.img .
+          chmod +x *.sh
+          ./unpackimg.sh recovery.img
+          
+          # --- Elite-Speed & Touch Fix ---
+          # Recovery içindeki prop dosyalarına hız ve hassasiyet ayarlarını gömüyoruz
+          [ -f ramdisk/default.prop ] && echo "persist.vendor.touch.high_sensitivity=1" >> ramdisk/default.prop
+          [ -f ramdisk/prop.default ] && echo "persist.vendor.touch.high_sensitivity=1" >> ramdisk/prop.default
+          echo "ro.input.resampling=1" >> ramdisk/default.prop 2>/dev/null
+          echo "vendor.display.enable_touch_boost=1" >> ramdisk/default.prop 2>/dev/null
+          
+          # Recovery'yi tekrar paketle
+          ./repackimg.sh
+
+      - name: Pack for Samsung (Odin Style)
+        run: |
+          # Dosyayı dışarı al ve Odin için hazırla
+          mv AIK/image-new.img recovery.img
+          tar -cvf A04s-Elite-Recovery.tar recovery.img
+          # SHA256'sını da alalım, Elite Dev farkı olsun
+          sha256sum recovery.img > sha256.txt
+
+      - name: Release the Beast
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            A04s-Elite-Recovery.tar
+            recovery.img
+            sha256.txt
+          tag_name: recovery-v28
+          name: "A04s Elite Recovery V28 - No Lag Edition"
+          body: |
+            ### 🚀 A04s Elite Recovery (VocaloidWorld1)
+            - **Kaynak:** Drive/Stock Recovery
+            - **Hız:** Ultra Touch Sensitivity & Boost aktif.
+            - **Format:** Odin için .tar ve direkt flaş için .img.
+            - **Geliştirici:** Efe (13 yaşında ama Developer!)
+            
+            Aga, ROM'dan sonra Recovery de hazır. A04s artık Miku'ya emanet! 🎹🔥
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
