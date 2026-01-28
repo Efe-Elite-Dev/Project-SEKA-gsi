@@ -1,4 +1,4 @@
-name: A04s Elite Recovery - Direct Image Patch V28
+name: A04s Elite Recovery - Drive Folder Build
 
 on:
   workflow_dispatch:
@@ -10,63 +10,67 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Install Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip xz-utils
+          sudo apt-get install -y python3-pip xz-utils file p7zip-full rsync
           pip install gdown
-          # Android Image Kitchen (En stabil versiyon)
-          git clone https://github.com/osm0sis/Android-Image-Kitchen.git AIK
 
-      - name: Download Recovery from Drive
+      - name: Download AIK and Recovery from Drive
         run: |
-          # Senin verdiğin Drive linki
+          # 1. Drive Klasöründeki AIK Dosyalarını Çek (Senin verdiğin klasör)
+          gdown --folder "https://drive.google.com/drive/folders/1SJ5Jnw3sSUXir0yZmURUgkpWrSK1YDPo" -O aik_files
+          
+          # 2. Orijinal Recovery İmajını Çek
           gdown "https://drive.google.com/uc?id=1qofFuiUshTQTZx7qUhPgIW8c3GOpvGdh" -O recovery.img
+
+      - name: Setup AIK Environment
+        run: |
+          # Klasörden ana dizine taşı ve yetkileri ver
+          cp -r aik_files/* .
+          chmod -R +x .
+          chmod -R +x bin/
+          # Bazı sistemlerde bin dosyaları için ek yetki gerekir
+          find bin/ -type f -exec chmod +x {} +
 
       - name: Unpack and Elite Patch
         run: |
-          cd AIK
-          mv ../recovery.img .
-          chmod +x *.sh
+          # Artık dosyalar ana dizinde olduğu için ./unpackimg.sh doğrudan çalışır
           ./unpackimg.sh recovery.img
           
-          # --- Elite-Speed & Touch Fix ---
-          # Recovery içindeki prop dosyalarına hız ve hassasiyet ayarlarını gömüyoruz
-          [ -f ramdisk/default.prop ] && echo "persist.vendor.touch.high_sensitivity=1" >> ramdisk/default.prop
-          [ -f ramdisk/prop.default ] && echo "persist.vendor.touch.high_sensitivity=1" >> ramdisk/prop.default
-          echo "ro.input.resampling=1" >> ramdisk/default.prop 2>/dev/null
-          echo "vendor.display.enable_touch_boost=1" >> ramdisk/default.prop 2>/dev/null
+          # --- Elite-Speed & Touch Fix (Efe V28 Settings) ---
+          # Ramdisk içindeki tüm prop dosyalarına sızıyoruz
+          find ramdisk/ -name "*.prop" -o -name "prop.default" | xargs -I {} sh -c 'echo "persist.vendor.touch.high_sensitivity=1" >> {}'
+          find ramdisk/ -name "*.prop" -o -name "prop.default" | xargs -I {} sh -c 'echo "ro.input.resampling=1" >> {}'
+          find ramdisk/ -name "*.prop" -o -name "prop.default" | xargs -I {} sh -c 'echo "vendor.display.enable_touch_boost=1" >> {}'
           
           # Recovery'yi tekrar paketle
           ./repackimg.sh
 
-      - name: Pack for Samsung (Odin Style)
+      - name: Pack and Release
         run: |
-          # Dosyayı dışarı al ve Odin için hazırla
-          mv AIK/image-new.img recovery.img
+          # Yeni imajı Samsung formatına (.tar) sok
+          mv image-new.img recovery.img
           tar -cvf A04s-Elite-Recovery.tar recovery.img
-          # SHA256'sını da alalım, Elite Dev farkı olsun
           sha256sum recovery.img > sha256.txt
 
-      - name: Release the Beast
+      - name: Release to World
         uses: softprops/action-gh-release@v1
         with:
           files: |
             A04s-Elite-Recovery.tar
             recovery.img
             sha256.txt
-          tag_name: recovery-v28
-          name: "A04s Elite Recovery V28 - No Lag Edition"
+          tag_name: recovery-v28-drive-folder
+          name: "A04s Elite Recovery V28 - Drive Powered"
           body: |
             ### 🚀 A04s Elite Recovery (VocaloidWorld1)
-            - **Kaynak:** Drive/Stock Recovery
-            - **Hız:** Ultra Touch Sensitivity & Boost aktif.
-            - **Format:** Odin için .tar ve direkt flaş için .img.
-            - **Geliştirici:** Efe (13 yaşında ama Developer!)
-            
-            Aga, ROM'dan sonra Recovery de hazır. A04s artık Miku'ya emanet! 🎹🔥
+            - **Kaynak:** Kişisel Drive Klasörü (Telif dostu build).
+            - **Hız:** Ultra Touch Sensitivity ve Low Latency fixleri uygulandı.
+            - **Format:** Odin (.tar) ve Raw (.img).
+            - **Geliştirici:** Efe (Elite Dev) 🎹🔥
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
