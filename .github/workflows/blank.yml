@@ -1,53 +1,63 @@
-name: A04s-All-In-One-Builder
+name: GSI Ultimate Tıkır Tıkır (D2TW + Touch Fix + BuildProp)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  mod-gsi:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      - name: Setup Tools
+      - name: Install System Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip android-sdk-libsparse-utils xz-utils
-          pip3 install --upgrade gdown --break-system-packages
+          sudo apt-get install -y simg2img img2simg android-sdk-libsparse-utils
 
-      - name: Download Real Files
+      - name: Mount and Inject Mods
         run: |
-          gdown --id 1A8sLEoItqNuoX1LnWJUKokZRPtHter_k -O miku.img --fuzzy
-          gdown --id 1S11bA-SEtg0ILETxerkTNblU_361vF7B -O vendor.img --fuzzy
+          # miku.img dosyasını hazırlıyoruz
+          simg2img miku.img miku_raw.img || mv miku.img miku_raw.img
+          mkdir sys_mount
+          sudo mount -o loop miku_raw.img sys_mount
+          
+          # --- 1. D2TW & Ekran Hassasiyeti (build.prop Modları) ---
+          # Bunlar dokunmatik panelin tepki süresini mermi gibi yapar
+          cat <<EOF | sudo tee -a sys_mount/system/build.prop
+          # Efe Elite Dev Touch Configs
+          persist.sys.phh.d2tw=true
+          ro.vendor.sdk.gesture.d2tw=1
+          persist.vendor.qti.input_resampling_rate=120
+          view.touch_slop=2
+          view.scroll_friction=0.008
+          ro.config.hw_quickpoweron=true
+          EOF
+          
+          # --- 2. Dokunmatik Fix Script (Senin Paylaştığın Efsane) ---
+          sudo cp services.sh sys_mount/system/bin/gsi-touch-fix.sh
+          sudo chmod 755 sys_mount/system/bin/gsi-touch-fix.sh
+          
+          # --- 3. Init Service (Scripti Sisteme Çivileme) ---
+          cat <<EOF | sudo tee sys_mount/system/etc/init/gsi_fixes.rc
+          service gsi_fixes /system/bin/sh /system/bin/gsi-touch-fix.sh
+              class main
+              user root
+              group root
+              seclabel u:r:magisk:s0
+              oneshot
+          EOF
+          
+          # --- 4. Volume Wake (Ses Tuşuyla Anında Uyandırma) ---
+          sudo sed -i 's/key 115   VOLUME_UP/key 115   VOLUME_UP           WAKE/g' sys_mount/system/usr/keylayout/Generic.kl
+          sudo sed -i 's/key 114   VOLUME_DOWN/key 114   VOLUME_DOWN         WAKE/g' sys_mount/system/usr/keylayout/Generic.kl
 
-      - name: Build and Compress (XZ Ultra)
-        run: |
-          # Önce Raw'a çevir
-          simg2img miku.img A04s_Miku_Full.img || cp miku.img A04s_Miku_Full.img
-          
-          echo "Aga 4.6GB dosya XZ ile sıkıştırılıyor, biraz sürebilir..."
-          # XZ ile en yüksek seviyede (-9) sıkıştır
-          xz -9 -T 0 A04s_Miku_Full.img
-          
-          # Dosya adını son haline getir
-          mv A04s_Miku_Full.img.xz A04s_Miku_Elite.img.xz
-          
-          ls -lh A04s_Miku_Elite.img.xz
+          # Temizlik
+          sudo umount sys_mount
+          img2simg miku_raw.img miku_final.img
 
-      - name: Create Miku Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload Modified GSI
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: "v5.0-A04s-Compressed"
-          name: "A04s Miku ROM - XZ Compressed"
-          body: |
-            ### VocaloidWorld1 - Efe Elite Dev
-            - **Gerçek Boyut:** 4.6 GB (Ham)
-            - **Sıkıştırılmış:** .img.xz formatında.
-            - **Not:** Telefona kurmadan önce PC'de 7-Zip ile ayıklayın!
-          files: A04s_Miku_Elite.img.xz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          name: Miku-GSI-Tikir-Tikir-Edition
+          path: miku_final.img
