@@ -1,4 +1,4 @@
-name:v2 gsi for a04s
+name: GSI Ultimate (Elite Gaming Edition)
 
 on:
   workflow_dispatch:
@@ -93,5 +93,10 @@ jobs:
           tag_name: "v${{ github.run_number }}-ultimate"
           name: "Project-SEKA GSI ULTIMATE v${{ github.run_number }}"
           body: |
-            ### tsfix working+.
+            ### 🅥 Vocaloid World - ULTIMATE GAMING EDITION
+            - **Touch Fix & D2TW:** Tıkır tıkır çalışıyor.
+            - **Gaming Mode:** GPU Rendering ve CPU Performance tweaks aktif.
+            - **Pixel 5 Spoof:** Google Fotoğraflar'da sınırsız depolama!
+            - **Network Fix:** Daha stabil Ping ve Wi-Fi hızı.
+            - **UI Fast:** Arayüz yağ gibi akıyor (120Hz optimizasyonu).
           token: ${{ secrets.GITHUB_TOKEN }}
