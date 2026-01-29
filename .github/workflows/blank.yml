@@ -1,4 +1,4 @@
-name: GSI Ultimate Tıkır Tıkır
+name: GSI Ultimate (Release Edition)
 
 on:
   workflow_dispatch:
@@ -6,6 +6,8 @@ on:
 jobs:
   mod-gsi:
     runs-on: ubuntu-latest
+    permissions: # Release oluşturmak için yetki lazım
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,10 +20,8 @@ jobs:
           sudo ln -sf /usr/bin/android-simg2img /usr/local/bin/simg2img
           sudo ln -sf /usr/bin/android-img2simg /usr/local/bin/img2simg
 
-      - name: Download GSI (Direct from Drive)
-        run: |
-          # Senin linkindeki dosya ID'sini kullanıyoruz
-          gdown --id 1A8sLEoItqNuoX1LnWJUKokZRPtHter_k -O miku.img
+      - name: Download GSI
+        run: gdown --id 1A8sLEoItqNuoX1LnWJUKokZRPtHter_k -O miku.img
 
       - name: Mount and Inject Mods
         run: |
@@ -29,7 +29,7 @@ jobs:
           mkdir sys_mount
           sudo mount -o loop miku_raw.img sys_mount
           
-          # 1. build.prop Ayarları (D2TW + Dokunmatik Hassasiyeti)
+          # 1. build.prop (D2TW & Touch)
           cat <<EOF | sudo tee -a sys_mount/system/build.prop
           persist.sys.phh.d2tw=true
           ro.vendor.sdk.gesture.d2tw=1
@@ -38,7 +38,7 @@ jobs:
           ro.config.hw_quickpoweron=true
           EOF
           
-          # 2. Touch Fix Script (Workflow içinde oluşturuyoruz ki hata çıkmasın)
+          # 2. Touch Fix Script
           cat <<EOF | sudo tee sys_mount/system/bin/gsi-touch-fix.sh
           #!/system/bin/sh
           fix() { su -c 'echo check_connection > /sys/class/sec/tsp/cmd && cat /sys/class/sec/tsp/cmd_result';}
@@ -52,7 +52,7 @@ jobs:
           EOF
           sudo chmod 755 sys_mount/system/bin/gsi-touch-fix.sh
           
-          # 3. Init Service (Scripti Başlatıcı)
+          # 3. Init Service
           cat <<EOF | sudo tee sys_mount/system/etc/init/gsi_fixes.rc
           service gsi_fixes /system/bin/sh /system/bin/gsi-touch-fix.sh
               class main
@@ -61,15 +61,24 @@ jobs:
               oneshot
           EOF
           
-          # 4. Volume Wake (Ses Tuşlarıyla Uyandırma)
+          # 4. Volume Wake
           sudo sed -i 's/key 115   VOLUME_UP/key 115   VOLUME_UP           WAKE/g' sys_mount/system/usr/keylayout/Generic.kl
           sudo sed -i 's/key 114   VOLUME_DOWN/key 114   VOLUME_DOWN         WAKE/g' sys_mount/system/usr/keylayout/Generic.kl
 
           sudo umount sys_mount
           img2simg miku_raw.img miku_final.img
 
-      - name: Upload GSI
-        uses: actions/upload-artifact@v4
+      - name: Create Release and Upload
+        uses: softprops/action-gh-release@v2
         with:
-          name: Miku-GSI-Ultimate
-          path: miku_final.img
+          tag_name: "v${{ github.run_number }}-${{ github.sha }}" # Her seferinde değişen versiyon
+          name: "Project-SEKA GSI Build ${{ github.run_number }}"
+          body: |
+            ### 🅥 Vocaloid World Special Edition
+            - **Touch Fix:** Ekran kapalıyken dokunmatik sorunu çözüldü.
+            - **D2TW:** Çift tıkla uyandırma aktif.
+            - **Volume Wake:** Ses tuşlarıyla uyandırma eklendi.
+            - **Build Date:** $(date +'%Y-%m-%d %H:%M')
+          files: miku_final.img
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
