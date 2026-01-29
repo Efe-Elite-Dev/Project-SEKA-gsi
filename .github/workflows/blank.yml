@@ -1,4 +1,4 @@
-name: GSI Ultimate (Release Edition)
+name: GSI Ultimate (XZ Release Edition)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 jobs:
   mod-gsi:
     runs-on: ubuntu-latest
-    permissions: # Release oluşturmak için yetki lazım
+    permissions:
       contents: write
     steps:
       - name: Checkout
@@ -15,7 +15,7 @@ jobs:
       - name: Install Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y android-sdk-libsparse-utils python3-pip
+          sudo apt-get install -y android-sdk-libsparse-utils python3-pip xz-utils
           pip3 install gdown --break-system-packages
           sudo ln -sf /usr/bin/android-simg2img /usr/local/bin/simg2img
           sudo ln -sf /usr/bin/android-img2simg /usr/local/bin/img2simg
@@ -29,7 +29,7 @@ jobs:
           mkdir sys_mount
           sudo mount -o loop miku_raw.img sys_mount
           
-          # 1. build.prop (D2TW & Touch)
+          # build.prop Modları
           cat <<EOF | sudo tee -a sys_mount/system/build.prop
           persist.sys.phh.d2tw=true
           ro.vendor.sdk.gesture.d2tw=1
@@ -38,7 +38,7 @@ jobs:
           ro.config.hw_quickpoweron=true
           EOF
           
-          # 2. Touch Fix Script
+          # Touch Fix Script (Vega.ogg mantığına uygun, her zaman arka planda)
           cat <<EOF | sudo tee sys_mount/system/bin/gsi-touch-fix.sh
           #!/system/bin/sh
           fix() { su -c 'echo check_connection > /sys/class/sec/tsp/cmd && cat /sys/class/sec/tsp/cmd_result';}
@@ -52,7 +52,7 @@ jobs:
           EOF
           sudo chmod 755 sys_mount/system/bin/gsi-touch-fix.sh
           
-          # 3. Init Service
+          # Init Service
           cat <<EOF | sudo tee sys_mount/system/etc/init/gsi_fixes.rc
           service gsi_fixes /system/bin/sh /system/bin/gsi-touch-fix.sh
               class main
@@ -61,24 +61,31 @@ jobs:
               oneshot
           EOF
           
-          # 4. Volume Wake
+          # Volume Wake
           sudo sed -i 's/key 115   VOLUME_UP/key 115   VOLUME_UP           WAKE/g' sys_mount/system/usr/keylayout/Generic.kl
           sudo sed -i 's/key 114   VOLUME_DOWN/key 114   VOLUME_DOWN         WAKE/g' sys_mount/system/usr/keylayout/Generic.kl
 
           sudo umount sys_mount
-          img2simg miku_raw.img miku_final.img
+          # Ham imajı sparse yap (daha küçük olur)
+          img2simg miku_raw.img miku_sparse.img
+
+      - name: Compress with XZ (Mermi Sıkıştırma)
+        run: |
+          # -9 en yüksek sıkıştırma, -T0 tüm CPU çekirdeklerini kullanır (Hızlıdır)
+          xz -9 -T0 miku_sparse.img
+          mv miku_sparse.img.xz miku_final.img.xz
 
       - name: Create Release and Upload
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: "v${{ github.run_number }}-${{ github.sha }}" # Her seferinde değişen versiyon
+          artifacts: "miku_final.img.xz"
+          tag: "v${{ github.run_number }}-${{ github.sha }}"
           name: "Project-SEKA GSI Build ${{ github.run_number }}"
           body: |
             ### 🅥 Vocaloid World Special Edition
             - **Touch Fix:** Ekran kapalıyken dokunmatik sorunu çözüldü.
             - **D2TW:** Çift tıkla uyandırma aktif.
             - **Volume Wake:** Ses tuşlarıyla uyandırma eklendi.
-            - **Build Date:** $(date +'%Y-%m-%d %H:%M')
-          files: miku_final.img
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - **Sıkıştırma:** XZ (Yüksek Oranlı)
+            - **Versiyon:** ${{ github.run_number }}
+          token: ${{ secrets.GITHUB_TOKEN }}
