@@ -26,10 +26,15 @@ jobs:
 
       - name: Prepare & Resize Image
         run: |
+          # Sparse dosyasını RAW'a çevir
           simg2img miku.img miku_raw.img || mv miku.img miku_raw.img
-          e2fsck -f miku_raw.img || true
-          # Daha fazla mod ekliyoruz, o yüzden 200MB yer açalım
-          resize2fs miku_raw.img $(($(stat -c %s miku_raw.img)/1024/1024 + 200))M
+          
+          # HATA ÇÖZÜMÜ: -p (preen) ve -f (force) ile otomatik tamir
+          # -y ekleyerek terminal sorma hatasını geçiyoruz
+          sudo e2fsck -y -f miku_raw.img || true
+          
+          # Imajı 250MB genişlet (Modlar için daha fazla alan)
+          sudo resize2fs miku_raw.img $(($(stat -c %s miku_raw.img)/1024/1024 + 250))M
 
       - name: Mount and Inject Mods
         run: |
@@ -41,42 +46,39 @@ jobs:
           # --- Project-SEKA Elite Tweaks ---
           persist.sys.phh.d2tw=true
           ro.vendor.sdk.gesture.d2tw=1
-          # Dokunmatik Hassasiyeti (Sampling Rate)
           persist.vendor.qti.input_resampling_rate=120
           view.touch_slop=2
-          # Akıcılık ve FPS (UI Tweaks)
           persist.sys.composition.type=gpu
           debug.cpurenderer.enabled=1
           debug.egl.hw=1
           debug.sf.hw=1
-          ro.config.low_ram=false
-          # Google Photos Sınırsız Depolama Hilesi (Pixel 5 taklidi)
           ro.product.model=Pixel 5
           ro.product.brand=google
-          # İnternet Hızlandırma
-          net.tcp.buffersize.wifi=262144,524288,1048576,2097152,4194304
           EOF
           
-          # 2. Gaming & Touch Fix Script (Gelişmiş Versiyon)
+          # 2. Touch Fix & Performance Script
           cat <<EOF | sudo tee sys_mount/system/bin/gsi-ultimate-fix.sh
           #!/system/bin/sh
-          # Dokunmatik Fix
           while true; do
             sleep 1
             if [ "\$(cat /sys/class/backlight/panel/brightness)" != "0" ]; then
               echo check_connection > /sys/class/sec/tsp/cmd
             fi
-            # Arka planda CPU'yu 'Performance' moduna zorla (Oyunlar için)
-            echo "performance" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null
           done
           EOF
           sudo chmod 755 sys_mount/system/bin/gsi-ultimate-fix.sh
           
-          # 3. Custom Boot Animation (Opsiyonel - Eğer sistemde varsa değiştirir)
-          # Buraya kendi animasyon linkini ekleyebilirsin aga.
+          # 3. Init Service
+          cat <<EOF | sudo tee sys_mount/system/etc/init/gsi_fixes.rc
+          on property:sys.boot_completed=1
+              start gsi_fixes
 
-          # 4. Debloat (Gereksiz Google servislerini silerek RAM açma)
-          sudo rm -f sys_mount/system/app/LatinImeGoogle/LatinImeGoogle.apk || true
+          service gsi_fixes /system/bin/sh /system/bin/gsi-touch-fix.sh
+              class main
+              user root
+              group root
+              oneshot
+          EOF
 
           sudo umount sys_mount
 
@@ -92,11 +94,6 @@ jobs:
           files: miku_final.img.xz
           tag_name: "v${{ github.run_number }}-ultimate"
           name: "Project-SEKA GSI ULTIMATE v${{ github.run_number }}"
-          body: |
-            ### 🅥 Vocaloid World - ULTIMATE GAMING EDITION
-            - **Touch Fix & D2TW:** Tıkır tıkır çalışıyor.
-            - **Gaming Mode:** GPU Rendering ve CPU Performance tweaks aktif.
-            - **Pixel 5 Spoof:** Google Fotoğraflar'da sınırsız depolama!
-            - **Network Fix:** Daha stabil Ping ve Wi-Fi hızı.
-            - **UI Fast:** Arayüz yağ gibi akıyor (120Hz optimizasyonu).
-          token: ${{ secrets.GITHUB_TOKEN }}
+          body: "Aga hata fixlendi, terminal sorunu çözüldü. Mermi gibi build geliyor! 🅥"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
