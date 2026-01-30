@@ -1,54 +1,68 @@
-name: 🚀 Pixel 9 Pro & POCO Ultimate GSI Builder v1.8.0.126
+name: 🚀 GSI Pixel-Poco Drive Builder v1.8.0.129
 
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch: # İŞTE BU SATIR: Manuel başlatma butonunu açar!
+  workflow_dispatch: # Butonla başlatmak için
+
+permissions:
+  contents: write
 
 jobs:
-  pixel-poco-build:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Repo Checkout
         uses: actions/checkout@v4
 
-      - name: 🛠️ Create Pixel 9 Unlimited System Props
+      - name: 🛠️ GSI & Drive Tools Kurulumu
         run: |
-          echo "Pixel 9 Pro Sınırsız Fotoğraf Tweakleri Hazırlanıyor..."
-          # Sınırsız fotoğraf için Pixel 1 (marlin) kimliği, Arayüz için Pixel 9 Pro
-          echo "ro.product.model=Pixel 9 Pro" > system.prop
-          echo "ro.product.brand=google" >> system.prop
-          echo "ro.product.name=marlin" >> system.prop
-          echo "ro.product.device=marlin" >> system.prop
-          echo "persist.sys.pixel_photos=true" >> system.prop
-          
-          # POCO Hız Tweakleri (A04s için)
-          echo "ro.config.low_ram=false" >> system.prop
-          echo "persist.sys.ui.hw=true" >> system.prop
-          echo "dalvik.vm.heapsize=512m" >> system.prop
-          echo "windowsmgr.max_events_per_sec=300" >> system.prop
-          echo "view.scroll_friction=0.01" >> system.prop
+          sudo apt-get update
+          sudo apt-get install -y simg2img img2simg e2fsprogs python3-pip
+          pip3 install gdown
 
-      - name: 📦 Optimize Launcher3
+      - name: 📥 Launcher3 APK'yı Drive'dan İndir
         run: |
-          echo "Launcher3 APK hazirlaniyor..."
-          # Eğer repo içinde Launcher3-aosp-release.apk varsa onu pakete dahil eder
-          if [ -f Launcher3-aosp-release.apk ]; then
-            mv Launcher3-aosp-release.apk Pixel9_Poco_Launcher.apk
-          else
-            echo "UYARI: Launcher3-aosp-release.apk dosyasi repoda bulunamadi!"
+          # Senin verdiğin Google Drive linkindeki dosyayı çekiyoruz
+          gdown --id 1eM7cDCfwu0zortgrjKY_8qkeinUpCu61 -O Launcher3.apk
+
+      - name: 🏗️ GSI Modifikasyon (Pixel 9 & POCO)
+        run: |
+          # Klasördeki .img dosyasını bul (Reponda bir .img olmalı)
+          GSI_FILE=$(ls *.img | head -n 1)
+          
+          # Imajı düzenlenebilir hale getir
+          simg2img "$GSI_FILE" system_raw.img || mv "$GSI_FILE" system_raw.img
+          mkdir -p mount_point
+          sudo mount -o loop system_raw.img mount_point
+
+          # TWEAK ENJEKSİYONU
+          echo "Pixel 9 Pro kimliği ve POCO hız ayarları gömülüyor..."
+          sudo bash -c "echo 'ro.product.model=Pixel 9 Pro' >> mount_point/system/build.prop"
+          sudo bash -c "echo 'ro.product.brand=google' >> mount_point/system/build.prop"
+          sudo bash -c "echo 'persist.sys.pixel_photos=true' >> mount_point/system/build.prop"
+          sudo bash -c "echo 'ro.config.low_ram=false' >> mount_point/system/build.prop"
+
+          # Drive'dan gelen Launcher3'ü sisteme göm
+          if [ -f Launcher3.apk ]; then
+            sudo mkdir -p mount_point/system/priv-app/Launcher3
+            sudo cp Launcher3.apk mount_point/system/priv-app/Launcher3/Launcher3.apk
+            sudo chmod 644 mount_point/system/priv-app/Launcher3/Launcher3.apk
           fi
 
-      - name: 📝 Generate Version Info
-        run: |
-          echo "BUILD_VERSION=v1.8.0.126-ButtonReady" > version.txt
-          echo "STATUS=Ready-to-Flash" >> version.txt
+          # Kapat ve Sıkıştır
+          sudo umount mount_point
+          img2simg system_raw.img PJSK_Pixel9_Poco_GSI_v1.8.0.129.img
+          echo "TAG_NAME=v1.8.0.129-$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
 
-      - name: ⬆️ Upload Ultimate Package
-        uses: actions/upload-artifact@v4
+      - name: 🆙 GitHub Release Oluştur ve Yükle
+        uses: softprops/action-gh-release@v1
         with:
-          name: A04s-Pixel9-Poco-Update-Pack
-          path: |
-            system.prop
-            version.txt
-            *.apk
+          tag_name: ${{ env.TAG_NAME }}
+          name: "🚀 PJSK Drive-Integrated GSI v1.8.0.129"
+          body: |
+            ### Samsung A04s Pixel-Poco GSI (v1.8.0.129)
+            - **Launcher:** Google Drive'dan otomatik çekildi.
+            - **Google Fotoğraflar:** Sınırsız yedekleme aktif.
+            - **Hız:** POCO Turbo Tweakleri uygulandı.
+          files: PJSK_Pixel9_Poco_GSI_v1.8.0.129.img
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
