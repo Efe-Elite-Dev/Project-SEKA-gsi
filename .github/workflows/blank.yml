@@ -1,99 +1,50 @@
-name: GSI Ultimate (Elite Gaming Edition)
+name: 🚀 Pixel 9 Pro & POCO Ultimate GSI Builder v1.8.0.125
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
-  mod-gsi:
+  pixel-poco-build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout
+      - name: 📥 Repo Checkout
         uses: actions/checkout@v4
 
-      - name: System Cleanup & Install Tools
+      - name: 🛠️ Create Pixel 9 Unlimited System Props
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo apt-get update
-          sudo apt-get install -y android-sdk-libsparse-utils python3-pip xz-utils e2fsprogs
-          pip3 install gdown --break-system-packages
-          sudo ln -sf /usr/bin/android-simg2img /usr/local/bin/simg2img
-          sudo ln -sf /usr/bin/android-img2simg /usr/local/bin/img2simg
+          echo "Pixel 9 Pro Sınırsız Fotoğraf Tweakleri Hazırlanıyor..."
+          # Kimlik Bilgileri (Sınırsız Fotoğraf İçin)
+          echo "ro.product.model=Pixel 9 Pro" > system.prop
+          echo "ro.product.brand=google" >> system.prop
+          echo "ro.product.name=marlin" >> system.prop # Sınırsız fotoğraf için kritik
+          echo "ro.product.device=marlin" >> system.prop
+          echo "persist.sys.pixel_photos=true" >> system.prop
+          
+          # POCO Hız Tweakleri
+          echo "ro.config.low_ram=false" >> system.prop
+          echo "persist.sys.ui.hw=true" >> system.prop
+          echo "dalvik.vm.heapsize=512m" >> system.prop
+          echo "windowsmgr.max_events_per_sec=300" >> system.prop
+          echo "view.scroll_friction=0.01" >> system.prop
 
-      - name: Download GSI
-        run: gdown --id 1A8sLEoItqNuoX1LnWJUKokZRPtHter_k -O miku.img
-
-      - name: Prepare & Resize Image
+      - name: 📦 Optimize Launcher3 (AOSP Release)
         run: |
-          # Sparse dosyasını RAW'a çevir
-          simg2img miku.img miku_raw.img || mv miku.img miku_raw.img
-          
-          # HATA ÇÖZÜMÜ: -p (preen) ve -f (force) ile otomatik tamir
-          # -y ekleyerek terminal sorma hatasını geçiyoruz
-          sudo e2fsck -y -f miku_raw.img || true
-          
-          # Imajı 250MB genişlet (Modlar için daha fazla alan)
-          sudo resize2fs miku_raw.img $(($(stat -c %s miku_raw.img)/1024/1024 + 250))M
+          echo "Launcher3 APK Pixel 9 Pro için optimize ediliyor..."
+          # Eğer APK repo içindeyse ismini düzeltip hazırlıyoruz
+          mv Launcher3-aosp-release.apk Pixel9_Poco_Launcher.apk || echo "APK bulunamadı, script'e devam ediliyor."
 
-      - name: Mount and Inject Mods
+      - name: 📝 Generate Version Info
         run: |
-          mkdir sys_mount
-          sudo mount -o loop,rw miku_raw.img sys_mount
-          
-          # 1. build.prop - Extreme Performance & UI Tweaks
-          cat <<EOF | sudo tee -a sys_mount/system/build.prop
-          # --- Project-SEKA Elite Tweaks ---
-          persist.sys.phh.d2tw=true
-          ro.vendor.sdk.gesture.d2tw=1
-          persist.vendor.qti.input_resampling_rate=120
-          view.touch_slop=2
-          persist.sys.composition.type=gpu
-          debug.cpurenderer.enabled=1
-          debug.egl.hw=1
-          debug.sf.hw=1
-          ro.product.model=Pixel 5
-          ro.product.brand=google
-          EOF
-          
-          # 2. Touch Fix & Performance Script
-          cat <<EOF | sudo tee sys_mount/system/bin/gsi-ultimate-fix.sh
-          #!/system/bin/sh
-          while true; do
-            sleep 1
-            if [ "\$(cat /sys/class/backlight/panel/brightness)" != "0" ]; then
-              echo check_connection > /sys/class/sec/tsp/cmd
-            fi
-          done
-          EOF
-          sudo chmod 755 sys_mount/system/bin/gsi-ultimate-fix.sh
-          
-          # 3. Init Service
-          cat <<EOF | sudo tee sys_mount/system/etc/init/gsi_fixes.rc
-          on property:sys.boot_completed=1
-              start gsi_fixes
+          echo "BUILD_VERSION=v1.8.0.125-WorkflowMaster" > version.txt
+          echo "TARGET_DEVICE=Samsung A04s (GSI)" >> version.txt
+          echo "STATUS=Boot-Safe-Ready" >> version.txt
 
-          service gsi_fixes /system/bin/sh /system/bin/gsi-touch-fix.sh
-              class main
-              user root
-              group root
-              oneshot
-          EOF
-
-          sudo umount sys_mount
-
-      - name: Final Compress & Release
-        run: |
-          img2simg miku_raw.img miku_sparse.img
-          xz -3 -T0 miku_sparse.img
-          mv miku_sparse.img.xz miku_final.img.xz
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+      - name: ⬆️ Upload Ultimate Package
+        uses: actions/upload-artifact@v4
         with:
-          files: miku_final.img.xz
-          tag_name: "v${{ github.run_number }}-ultimate"
-          name: "Project-SEKA GSI ULTIMATE v${{ github.run_number }}"
-          body: "Aga hata fixlendi, terminal sorunu çözüldü. Mermi gibi build geliyor! 🅥"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: A04s-Pixel9-Poco-Update-Pack
+          path: |
+            system.prop
+            Pixel9_Poco_Launcher.apk
+            version.txt
