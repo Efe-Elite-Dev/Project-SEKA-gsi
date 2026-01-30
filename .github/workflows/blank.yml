@@ -1,8 +1,9 @@
-name: 🚀 Pixel 9 Pro & POCO Ultimate GSI Builder v1.8.0.125
+name: 🚀 Pixel 9 Pro & POCO Ultimate GSI Builder v1.8.0.126
 
 on:
   push:
     branches: [ main ]
+  workflow_dispatch: # İŞTE BU SATIR: Manuel başlatma butonunu açar!
 
 jobs:
   pixel-poco-build:
@@ -14,31 +15,34 @@ jobs:
       - name: 🛠️ Create Pixel 9 Unlimited System Props
         run: |
           echo "Pixel 9 Pro Sınırsız Fotoğraf Tweakleri Hazırlanıyor..."
-          # Kimlik Bilgileri (Sınırsız Fotoğraf İçin)
+          # Sınırsız fotoğraf için Pixel 1 (marlin) kimliği, Arayüz için Pixel 9 Pro
           echo "ro.product.model=Pixel 9 Pro" > system.prop
           echo "ro.product.brand=google" >> system.prop
-          echo "ro.product.name=marlin" >> system.prop # Sınırsız fotoğraf için kritik
+          echo "ro.product.name=marlin" >> system.prop
           echo "ro.product.device=marlin" >> system.prop
           echo "persist.sys.pixel_photos=true" >> system.prop
           
-          # POCO Hız Tweakleri
+          # POCO Hız Tweakleri (A04s için)
           echo "ro.config.low_ram=false" >> system.prop
           echo "persist.sys.ui.hw=true" >> system.prop
           echo "dalvik.vm.heapsize=512m" >> system.prop
           echo "windowsmgr.max_events_per_sec=300" >> system.prop
           echo "view.scroll_friction=0.01" >> system.prop
 
-      - name: 📦 Optimize Launcher3 (AOSP Release)
+      - name: 📦 Optimize Launcher3
         run: |
-          echo "Launcher3 APK Pixel 9 Pro için optimize ediliyor..."
-          # Eğer APK repo içindeyse ismini düzeltip hazırlıyoruz
-          mv Launcher3-aosp-release.apk Pixel9_Poco_Launcher.apk || echo "APK bulunamadı, script'e devam ediliyor."
+          echo "Launcher3 APK hazirlaniyor..."
+          # Eğer repo içinde Launcher3-aosp-release.apk varsa onu pakete dahil eder
+          if [ -f Launcher3-aosp-release.apk ]; then
+            mv Launcher3-aosp-release.apk Pixel9_Poco_Launcher.apk
+          else
+            echo "UYARI: Launcher3-aosp-release.apk dosyasi repoda bulunamadi!"
+          fi
 
       - name: 📝 Generate Version Info
         run: |
-          echo "BUILD_VERSION=v1.8.0.125-WorkflowMaster" > version.txt
-          echo "TARGET_DEVICE=Samsung A04s (GSI)" >> version.txt
-          echo "STATUS=Boot-Safe-Ready" >> version.txt
+          echo "BUILD_VERSION=v1.8.0.126-ButtonReady" > version.txt
+          echo "STATUS=Ready-to-Flash" >> version.txt
 
       - name: ⬆️ Upload Ultimate Package
         uses: actions/upload-artifact@v4
@@ -46,5 +50,5 @@ jobs:
           name: A04s-Pixel9-Poco-Update-Pack
           path: |
             system.prop
-            Pixel9_Poco_Launcher.apk
             version.txt
+            *.apk
